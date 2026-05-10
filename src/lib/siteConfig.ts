@@ -10,8 +10,10 @@ export type SiteConfig = {
   title: string
   tagline?: string
   bio?: string
-  /** Label shown above tag filters (default: “Series”) */
-  collectionsLabel?: string
+  /** Label above location filters (default in UI: “Locations”) */
+  locationsLabel?: string
+  /** Label above tag filters (default in UI: “Tags”). Legacy `collectionsLabel` maps here if unset. */
+  tagsLabel?: string
   social?: SocialLink[]
   /**
    * Logo image: filename under `public/` (e.g. `logo.svg`) or absolute `https://…` URL.
@@ -66,9 +68,19 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
   const tagline =
     typeof raw.tagline === 'string' ? raw.tagline.trim() : undefined
   const bio = typeof raw.bio === 'string' ? raw.bio.trim() : undefined
-  const collectionsLabel =
+  const legacyCollections =
     typeof raw.collectionsLabel === 'string' && raw.collectionsLabel.trim()
       ? raw.collectionsLabel.trim()
+      : undefined
+
+  const tagsLabel =
+    typeof raw.tagsLabel === 'string' && raw.tagsLabel.trim()
+      ? raw.tagsLabel.trim()
+      : legacyCollections
+
+  const locationsLabel =
+    typeof raw.locationsLabel === 'string' && raw.locationsLabel.trim()
+      ? raw.locationsLabel.trim()
       : undefined
 
   const logo =
@@ -120,7 +132,8 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
     title,
     ...(tagline ? { tagline } : {}),
     ...(bio ? { bio } : {}),
-    ...(collectionsLabel ? { collectionsLabel } : {}),
+    ...(tagsLabel ? { tagsLabel } : {}),
+    ...(locationsLabel ? { locationsLabel } : {}),
     ...(social.length ? { social } : {}),
     ...(logo ? { logo } : {}),
     ...(logoAlt ? { logoAlt } : {}),

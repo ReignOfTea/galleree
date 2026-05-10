@@ -13,6 +13,7 @@ import './App.css'
 export default function App() {
   const site = useSiteConfig()
   const { entries } = useGalleryManifest()
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
 
   const annotated: GalleryEntry[] = useMemo(
@@ -37,20 +38,42 @@ export default function App() {
     [entries],
   )
 
+  const allLocations = useMemo(() => {
+    const set = new Set<string>()
+    for (const item of annotated) {
+      if (item.locationDisplay) set.add(item.locationDisplay)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [annotated])
+
   const allTags = useMemo(() => {
     const set = new Set<string>()
     for (const item of annotated) {
-      for (const t of item.tags) set.add(t)
+      for (const t of item.tags) {
+        if (item.locationDisplay && t === item.locationDisplay) continue
+        set.add(t)
+      }
     }
     return [...set].sort((a, b) => a.localeCompare(b))
   }, [annotated])
 
   const filtered = useMemo(() => {
-    if (!selectedTag) return annotated
-    return annotated.filter((item) => item.tags.includes(selectedTag))
-  }, [annotated, selectedTag])
+    return annotated.filter((item) => {
+      if (
+        selectedLocation != null &&
+        item.locationDisplay !== selectedLocation
+      ) {
+        return false
+      }
+      if (selectedTag != null && !item.tags.includes(selectedTag)) {
+        return false
+      }
+      return true
+    })
+  }, [annotated, selectedLocation, selectedTag])
 
-  const collectionsLabel = site.collectionsLabel ?? 'Series'
+  const locationsLabel = site.locationsLabel ?? 'Locations'
+  const tagsLabel = site.tagsLabel ?? 'Tags'
 
   return (
     <div className="portfolio">
@@ -63,7 +86,19 @@ export default function App() {
       <PortfolioHeader config={site} />
 
       <TagBar
-        label={collectionsLabel}
+        label={locationsLabel}
+        idPrefix="locations"
+        navAriaLabel="Filter by location"
+        resetLabel="All locations"
+        tags={allLocations}
+        selected={selectedLocation}
+        onSelect={setSelectedLocation}
+      />
+      <TagBar
+        label={tagsLabel}
+        idPrefix="tags"
+        navAriaLabel="Filter by tag"
+        resetLabel="All tags"
         tags={allTags}
         selected={selectedTag}
         onSelect={setSelectedTag}

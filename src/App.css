@@ -1,8 +1,8 @@
 .portfolio {
   position: relative;
   text-align: left;
-  padding: clamp(2.25rem, 5vw, 3.75rem) clamp(1.25rem, 4vw, 2.75rem)
-    clamp(3.5rem, 8vw, 5.5rem);
+  padding: clamp(1rem, 3vw, 1.65rem) clamp(1.25rem, 4vw, 2.75rem)
+    clamp(2.25rem, 6vw, 3.75rem);
   max-width: 1420px;
   margin: 0 auto;
 }
@@ -115,7 +115,7 @@
   display: flex;
   justify-content: flex-end;
   width: 100%;
-  margin: 0 0 clamp(1.35rem, 3.5vw, 2.25rem);
+  margin: 0 0 clamp(0.45rem, 1.8vw, 0.85rem);
 }
 
 @media (max-width: 520px) {
@@ -137,11 +137,11 @@
 }
 
 .portfolio-header {
-  margin-bottom: clamp(2rem, 5vw, 3rem);
+  margin-bottom: clamp(1rem, 2.8vw, 1.5rem);
 }
 
 .portfolio-kicker {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.35rem;
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.28em;
@@ -150,7 +150,7 @@
 }
 
 .portfolio-brand-heading {
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.5rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -186,7 +186,7 @@
 }
 
 .portfolio-tagline {
-  margin: 0 0 1rem;
+  margin: 0 0 0.6rem;
   max-width: 36rem;
   font-size: 1.05rem;
   line-height: 1.65;
@@ -202,7 +202,7 @@
 }
 
 .portfolio-rule {
-  margin-top: clamp(1.75rem, 4vw, 2.5rem);
+  margin-top: clamp(0.85rem, 2.2vw, 1.25rem);
   height: 1px;
   max-width: 4rem;
   background: linear-gradient(
@@ -212,12 +212,16 @@
   );
 }
 
-.collections {
-  margin-bottom: clamp(1.75rem, 4vw, 2.5rem);
+.filter-section {
+  margin-bottom: clamp(0.65rem, 1.8vw, 1rem);
 }
 
-.collections-heading {
-  margin: 0 0 1rem;
+.filter-section:last-of-type {
+  margin-bottom: clamp(1rem, 2.5vw, 1.35rem);
+}
+
+.filter-section-heading {
+  margin: 0 0 0.45rem;
   font-family: var(--font-body);
   font-size: 0.72rem;
   font-weight: 700;
@@ -260,7 +264,8 @@
 }
 
 .portfolio-main {
-  margin-bottom: clamp(3rem, 8vw, 5rem);
+  margin-top: 0;
+  margin-bottom: clamp(2.25rem, 6vw, 4rem);
 }
 
 .gallery-empty {

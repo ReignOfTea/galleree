@@ -9,7 +9,8 @@
   "logoMaxWidth": "min(100%, 36rem)",
   "tagline": "Just go out and do stuff - It's free.",
   "bio": "Based in Manchester, UK - Willing to attend exciting events.",
-  "collectionsLabel": "Collections",
+  "locationsLabel": "Locations",
+  "tagsLabel": "Tags",
   "social": [
     { "label": "X", "url": "https://x.com/ReignOfTea" },
     { "label": "Email", "url": "mailto:reignoftea@gmail.com" },
