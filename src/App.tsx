@@ -1,63 +1,97 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { CollapsibleFilterSection } from './components/CollapsibleFilterSection'
 import { Gallery } from './components/Gallery'
 import { PortfolioFooter } from './components/PortfolioFooter'
 import { PortfolioHeader } from './components/PortfolioHeader'
+import { SortOrderBar } from './components/SortOrderBar'
 import { TagBar } from './components/TagBar'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useGalleryManifest } from './hooks/useGalleryManifest'
 import { useSiteConfig } from './hooks/useSiteConfig'
 import type { GalleryEntry } from './hooks/useGalleryManifest'
+import {
+  compareGalleryEntries,
+  DEFAULT_GALLERY_SORT_ORDER,
+  type GallerySortOrder,
+} from './lib/gallerySort'
+import { galleryEntryMatchesQuery } from './lib/gallerySearch'
 import { parseFilenameMeta } from './lib/tags'
 import './App.css'
 
 export default function App() {
   const site = useSiteConfig()
   const { entries } = useGalleryManifest()
+  const locationsLabel = site.locationsLabel ?? 'Locations'
+  const tagsLabel = site.tagsLabel ?? 'Tags'
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null)
-  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [sortOrder, setSortOrder] =
+    useState<GallerySortOrder>(DEFAULT_GALLERY_SORT_ORDER)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [locationsOpen, setLocationsOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
 
-  const annotated: GalleryEntry[] = useMemo(
+  const entriesWithMeta: GalleryEntry[] = useMemo(
     () =>
-      entries
-        .map((e) => {
-          const meta = parseFilenameMeta(e.file)
-          return {
-            ...e,
-            ...meta,
-          }
-        })
-        .sort((a, b) => {
-          const ta = a.capturedAt ?? Number.NEGATIVE_INFINITY
-          const tb = b.capturedAt ?? Number.NEGATIVE_INFINITY
-          if (tb !== ta) return tb - ta
-          const sa = a.sequence ?? Number.NEGATIVE_INFINITY
-          const sb = b.sequence ?? Number.NEGATIVE_INFINITY
-          if (sb !== sa) return sb - sa
-          return a.file.localeCompare(b.file)
-        }),
+      entries.map((e) => {
+        const meta = parseFilenameMeta(e.file)
+        return {
+          ...e,
+          ...meta,
+        }
+      }),
     [entries],
   )
 
+  const annotated: GalleryEntry[] = useMemo(() => {
+    const copy = [...entriesWithMeta]
+    copy.sort((a, b) => compareGalleryEntries(a, b, sortOrder))
+    return copy
+  }, [entriesWithMeta, sortOrder])
+
   const allLocations = useMemo(() => {
     const set = new Set<string>()
-    for (const item of annotated) {
+    for (const item of entriesWithMeta) {
       if (item.locationDisplay) set.add(item.locationDisplay)
     }
     return [...set].sort((a, b) => a.localeCompare(b))
-  }, [annotated])
+  }, [entriesWithMeta])
 
-  const allTags = useMemo(() => {
+  const poolForTags = useMemo(() => {
+    if (selectedLocation == null) return entriesWithMeta
+    return entriesWithMeta.filter(
+      (item) => item.locationDisplay === selectedLocation,
+    )
+  }, [entriesWithMeta, selectedLocation])
+
+  const availableTags = useMemo(() => {
     const set = new Set<string>()
-    for (const item of annotated) {
+    for (const item of poolForTags) {
       for (const t of item.tags) {
         if (item.locationDisplay && t === item.locationDisplay) continue
         set.add(t)
       }
     }
     return [...set].sort((a, b) => a.localeCompare(b))
-  }, [annotated])
+  }, [poolForTags])
 
-  const filtered = useMemo(() => {
+  /** Tags that apply to the current location scope (drops stale picks when location changes). */
+  const effectiveSelectedTags = useMemo(
+    () => selectedTags.filter((t) => availableTags.includes(t)),
+    [selectedTags, availableTags],
+  )
+
+  const toggleTag = useCallback((tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag)
+        ? prev.filter((t) => t !== tag)
+        : [...prev, tag].sort((a, b) => a.localeCompare(b)),
+    )
+  }, [])
+
+  const clearTags = useCallback(() => setSelectedTags([]), [])
+
+  const facetFiltered = useMemo(() => {
     return annotated.filter((item) => {
       if (
         selectedLocation != null &&
@@ -65,15 +99,34 @@ export default function App() {
       ) {
         return false
       }
-      if (selectedTag != null && !item.tags.includes(selectedTag)) {
-        return false
+      for (const t of effectiveSelectedTags) {
+        if (!item.tags.includes(t)) return false
       }
       return true
     })
-  }, [annotated, selectedLocation, selectedTag])
+  }, [annotated, selectedLocation, effectiveSelectedTags])
 
-  const locationsLabel = site.locationsLabel ?? 'Locations'
-  const tagsLabel = site.tagsLabel ?? 'Tags'
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim()
+    if (!q) return facetFiltered
+    return facetFiltered.filter((item) => galleryEntryMatchesQuery(item, q))
+  }, [facetFiltered, searchQuery])
+
+  const galleryEmptyHint =
+    filtered.length === 0 && facetFiltered.length > 0 && searchQuery.trim()
+      ? 'search'
+      : 'filters'
+
+  const locationSummary =
+    selectedLocation ?? `All ${locationsLabel.toLowerCase()}`
+
+  const tagsSummary = useMemo(() => {
+    if (effectiveSelectedTags.length === 0) {
+      return `All ${tagsLabel.toLowerCase()}`
+    }
+    const joined = effectiveSelectedTags.join(', ')
+    return joined.length > 72 ? `${joined.slice(0, 71)}…` : joined
+  }, [effectiveSelectedTags, tagsLabel])
 
   return (
     <div className="portfolio">
@@ -85,24 +138,81 @@ export default function App() {
       </div>
       <PortfolioHeader config={site} />
 
-      <TagBar
-        label={locationsLabel}
-        idPrefix="locations"
-        navAriaLabel="Filter by location"
-        resetLabel="All locations"
-        tags={allLocations}
-        selected={selectedLocation}
-        onSelect={setSelectedLocation}
-      />
-      <TagBar
-        label={tagsLabel}
-        idPrefix="tags"
-        navAriaLabel="Filter by tag"
-        resetLabel="All tags"
-        tags={allTags}
-        selected={selectedTag}
-        onSelect={setSelectedTag}
-      />
+      <div className="gallery-control-panel">
+        <div className="gallery-controls-toolbar">
+          <div className="gallery-search-wrap">
+            <label htmlFor="gallery-search" className="visually-hidden">
+              Search gallery
+            </label>
+            <input
+              id="gallery-search"
+              type="search"
+              className="gallery-search-input"
+              placeholder="Search title, tags, location, date…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <SortOrderBar
+            variant="toolbar"
+            label="Sort"
+            idPrefix="sort"
+            navAriaLabel="Gallery sort order"
+            value={sortOrder}
+            onChange={setSortOrder}
+          />
+        </div>
+
+        {allLocations.length > 0 || availableTags.length > 0 ? (
+          <div className="gallery-filters-strip">
+            {allLocations.length > 0 ? (
+              <CollapsibleFilterSection
+                idPrefix="locations"
+                title={locationsLabel}
+                summary={locationSummary}
+                open={locationsOpen}
+                onOpenChange={setLocationsOpen}
+              >
+                <TagBar
+                  variant="nav-only"
+                  label={locationsLabel}
+                  idPrefix="locations"
+                  navAriaLabel="Filter by location"
+                  resetLabel="All locations"
+                  tags={allLocations}
+                  selected={selectedLocation}
+                  onSelect={setSelectedLocation}
+                />
+              </CollapsibleFilterSection>
+            ) : null}
+
+            {availableTags.length > 0 ? (
+              <CollapsibleFilterSection
+                idPrefix="tags"
+                title={tagsLabel}
+                summary={tagsSummary}
+                open={tagsOpen}
+                onOpenChange={setTagsOpen}
+              >
+                <TagBar
+                  variant="nav-only"
+                  selectionMode="multi"
+                  label={tagsLabel}
+                  idPrefix="tags"
+                  navAriaLabel="Filter photos by tag (choose any combination)"
+                  resetLabel="All tags"
+                  tags={availableTags}
+                  selectedTags={effectiveSelectedTags}
+                  onToggleTag={toggleTag}
+                  onClearTags={clearTags}
+                />
+              </CollapsibleFilterSection>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <main id="gallery-main" className="portfolio-main" tabIndex={-1}>
         {entries.length === 0 && (
@@ -118,6 +228,7 @@ export default function App() {
             items={filtered}
             allItems={annotated}
             siteTitle={site.title}
+            emptyHint={galleryEmptyHint}
           />
         )}
       </main>

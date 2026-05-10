@@ -57,7 +57,6 @@ export function galleryCaptionMetaParts(
     | 'capturedAtIsDateOnly'
     | 'cameraLabel'
     | 'eventLabel'
-    | 'sequence'
   >,
 ): string[] {
   const parts: string[] = []
@@ -67,6 +66,5 @@ export function galleryCaptionMetaParts(
   }
   if (e.cameraLabel) parts.push(e.cameraLabel)
   if (e.eventLabel) parts.push(e.eventLabel)
-  if (e.sequence != null) parts.push(`#${e.sequence}`)
   return parts
 }

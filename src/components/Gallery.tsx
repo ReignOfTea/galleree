@@ -20,9 +20,11 @@ type Props = {
   /** Full gallery (ignores tag filter) for resolving `#photo=` / `?photo=` links. */
   allItems: GalleryEntry[]
   siteTitle: string
+  /** Why the grid is empty when filters/search yield nothing */
+  emptyHint?: 'filters' | 'search'
 }
 
-export function Gallery({ items, allItems, siteTitle }: Props) {
+export function Gallery({ items, allItems, siteTitle, emptyHint }: Props) {
   const [lightbox, setLightbox] = useState<LightboxPhoto | null>(null)
 
   useEffect(() => {
@@ -95,10 +97,15 @@ export function Gallery({ items, allItems, siteTitle }: Props) {
   }, [items, columns])
 
   if (items.length === 0) {
+    const searchOnly =
+      emptyHint === 'search'
+        ? 'No photos match your search. Try different words or clear the search box.'
+        : null
+    const filterMsg =
+      'Nothing in this series yet. Choose another filter or add matching images to your gallery folder.'
     return (
       <p className="gallery-empty gallery-empty-filter">
-        Nothing in this series yet. Choose another filter or add matching images to
-        your gallery folder.
+        {searchOnly ?? filterMsg}
       </p>
     )
   }

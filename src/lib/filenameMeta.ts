@@ -1,20 +1,20 @@
 /**
  * Filename convention (no sidecar metadata):
  *
- * **Structured** — underscore-separated segments. Detected when both `tags-…` and `seq-…` are present.
+ * **Structured** — underscore-separated segments. Detected when `tags-…` is present.
  *
  * Canonical order (flexible; parsing matches by prefix):
- * `{titleSlug}_tags-{tag1}--{tag2}_loc-{CitySlug}-{CC}_dt-{…}_seq-{NN}_cam-{slug}_evt-{slug}`
+ * `{titleSlug}_tags-{tag1}--{tag2}_loc-{CitySlug}-{CC}_dt-{…}_cam-{slug}_evt-{slug}`
  *
  * - **titleSlug**: first segment without a known prefix; hyphens → spaces, words title-cased (e.g. `evening-rush` → "Evening Rush").
  * - **tags**: `tags-` then tags separated by `--`; words inside a tag use single hyphens (`urban--new-york-city` → Urban, New York City).
- * - **loc**: same as legacy — `loc-{citySlug}-{countryCode}` → display "City, CC" and included as a tag.
+ * - **loc**: `loc-{citySlug}-{CC}` → "City, CC", or **`loc-{citySlug},{CC}`** (comma before country, e.g. `loc-Bury,UK`).
  * - **dt**: optional — `dt-YYYYMMDD-HHmmss` (local wall time) **or** date-only `dt-YYYYMMDD` (stored as local midnight; UI omits clock time).
- * - **seq**: required iterator for structured names — `seq-01`, `seq-02`, … (zero-padding optional).
  * - **cam** / **evt**: optional camera or event label slugs.
+ * - **seq-…** (legacy): if still present in old files, the segment is skipped and not shown; sort order uses capture date/time.
  *
  * Example:
- * `evening-rush_tags-urban--night_loc-Bury-UK_dt-20240510-183045_seq-01_cam-fuji-x100v.jpg`
+ * `evening-rush_tags-urban--night_loc-Bury-UK_dt-20240510-183045_cam-fuji-x100v.jpg`
  *
  * **Legacy** — any filename that does not match structured detection; underscore segments become tags,
  * optional `loc-…`, numeric segments skipped (existing behaviour).
@@ -58,6 +58,16 @@ function parseLocSegment(seg: string): string | null {
   const locMatch = seg.match(LOC_SEGMENT)
   if (!locMatch) return null
   const inner = locMatch[1]
+
+  const commaIdx = inner.indexOf(',')
+  if (commaIdx > 0 && commaIdx < inner.length - 1) {
+    const citySlug = inner.slice(0, commaIdx).trim()
+    const country = inner.slice(commaIdx + 1).trim()
+    const cityDisplay = formatLocationCitySlug(citySlug).trim()
+    if (!cityDisplay || !country) return null
+    return `${cityDisplay}, ${country.toUpperCase()}`
+  }
+
   const splitAt = inner.lastIndexOf('-')
   if (splitAt <= 0) return null
   const citySlug = inner.slice(0, splitAt)
@@ -68,10 +78,7 @@ function parseLocSegment(seg: string): string | null {
 }
 
 function isStructuredStem(segments: string[]): boolean {
-  return (
-    segments.some((s) => s.toLowerCase().startsWith('tags-')) &&
-    segments.some((s) => /^seq-\d+$/i.test(s))
-  )
+  return segments.some((s) => s.toLowerCase().startsWith('tags-'))
 }
 
 /** `dt-YYYYMMDD-HHmmss` or `dt-YYYYMMDD` (local midnight). */
@@ -118,8 +125,6 @@ export type FilenameMeta = {
   capturedAt: number | null
   /** True when `dt-…` was date-only (`dt-YYYYMMDD`); UI formats without time-of-day */
   capturedAtIsDateOnly: boolean
-  /** Parsed `seq-…` integer */
-  sequence: number | null
   cameraLabel: string | null
   eventLabel: string | null
   parseMode: 'structured' | 'legacy'
@@ -131,7 +136,6 @@ function parseStructuredStem(segments: string[]): FilenameMeta {
   let locationDisplay: string | null = null
   let capturedAt: number | null = null
   let capturedAtIsDateOnly = false
-  let sequence: number | null = null
   let cameraLabel: string | null = null
   let eventLabel: string | null = null
 
@@ -155,9 +159,6 @@ function parseStructuredStem(segments: string[]): FilenameMeta {
       continue
     }
     if (lower.startsWith('seq-')) {
-      const payload = seg.slice('seq-'.length)
-      const n = parseInt(payload, 10)
-      if (!Number.isNaN(n)) sequence = n
       continue
     }
     if (lower.startsWith('cam-')) {
@@ -186,7 +187,6 @@ function parseStructuredStem(segments: string[]): FilenameMeta {
     displayTitle: titleSlug ? slugToDisplayTitle(titleSlug) : null,
     capturedAt,
     capturedAtIsDateOnly,
-    sequence,
     cameraLabel,
     eventLabel,
     parseMode: 'structured',
@@ -217,7 +217,6 @@ function parseLegacyStem(segments: string[]): Omit<FilenameMeta, 'parseMode'> {
     displayTitle: null,
     capturedAt: null,
     capturedAtIsDateOnly: false,
-    sequence: null,
     cameraLabel: null,
     eventLabel: null,
   }
@@ -225,7 +224,7 @@ function parseLegacyStem(segments: string[]): Omit<FilenameMeta, 'parseMode'> {
 
 /**
  * Parse gallery image metadata from `filename` (basename or path).
- * Structured convention when both `tags-…` and `seq-…` appear; otherwise legacy rules apply.
+ * Structured convention when `tags-…` appears; otherwise legacy rules apply.
  */
 export function parseFilenameMeta(filename: string): FilenameMeta {
   const baseName = stripExtension(filename.split(/[/\\]/).pop() ?? '')

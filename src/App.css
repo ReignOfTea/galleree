@@ -263,6 +263,218 @@
   border-bottom-color: color-mix(in oklab, var(--accent) 75%, var(--text-strong));
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.gallery-control-panel {
+  margin-bottom: clamp(0.35rem, 1.2vw, 0.65rem);
+}
+
+.gallery-controls-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.65rem 1.15rem;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: clamp(0.45rem, 1.2vw, 0.65rem);
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--hairline) 88%, transparent);
+  background: color-mix(in oklab, var(--hairline) 11%, var(--bg));
+}
+
+.gallery-search-wrap {
+  flex: 0 1 min(20rem, 100%);
+  min-width: 0;
+}
+
+.gallery-search-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.42rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: color-mix(in oklab, var(--bg) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--hairline) 75%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.gallery-search-input:hover {
+  background: color-mix(in oklab, var(--bg) 75%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, var(--hairline));
+}
+
+.gallery-search-input:focus {
+  outline: none;
+  background: var(--bg);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 40%, var(--hairline)),
+    0 0 0 2px color-mix(in oklab, var(--accent) 15%, transparent);
+}
+
+.sort-order-toolbar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.85rem;
+  flex-shrink: 0;
+}
+
+.sort-order-toolbar-label {
+  margin: 0;
+  padding-bottom: 0.08rem;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sort-order-nav {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  row-gap: 0.35rem;
+}
+
+@media (max-width: 560px) {
+  .gallery-controls-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .gallery-search-wrap {
+    flex: 1 1 auto;
+    max-width: none;
+    width: 100%;
+  }
+
+  .sort-order-toolbar {
+    width: 100%;
+  }
+
+  .sort-order-nav {
+    gap: 0.3rem 0.65rem;
+  }
+
+  .sort-order-toolbar .tag-link {
+    font-size: 0.84rem;
+  }
+}
+
+.gallery-filters-strip {
+  margin-top: clamp(0.35rem, 1vw, 0.55rem);
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--hairline) 88%, transparent);
+  background: color-mix(in oklab, var(--hairline) 11%, var(--bg));
+  overflow: hidden;
+}
+
+.gallery-filters-strip .filter-collapsible {
+  border-bottom: 1px solid color-mix(in oklab, var(--hairline) 75%, transparent);
+}
+
+.gallery-filters-strip .filter-collapsible:last-child {
+  border-bottom: none;
+}
+
+.filter-collapsible {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+.filter-collapsible-trigger {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.52rem 0.75rem;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  border-radius: 0;
+}
+
+.filter-collapsible-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.gallery-filters-strip .filter-collapsible-trigger:hover {
+  background: color-mix(in oklab, var(--hairline) 35%, transparent);
+}
+
+.filter-collapsible-title {
+  flex: 0 0 auto;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.filter-collapsible-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-collapsible-chevron {
+  flex: 0 0 auto;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+.filter-collapsible-trigger-open .filter-collapsible-chevron {
+  transform: rotate(-135deg);
+  margin-bottom: 0.12rem;
+}
+
+.filter-collapsible-panel {
+  align-self: stretch;
+  width: 100%;
+  padding: 0 0.65rem clamp(0.45rem, 1vw, 0.65rem);
+  background: color-mix(in oklab, var(--bg) 40%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--hairline) 65%, transparent);
+}
+
+.filter-collapsible-panel .tag-bar {
+  padding-left: 0.1rem;
+}
+
 .portfolio-main {
   margin-top: 0;
   margin-bottom: clamp(2.25rem, 6vw, 4rem);

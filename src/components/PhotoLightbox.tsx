@@ -147,7 +147,6 @@ export function PhotoLightbox({
     dateLabel,
     photo.cameraLabel,
     photo.eventLabel,
-    photo.sequence != null ? `#${photo.sequence}` : null,
   ].filter(Boolean) as string[]
 
   const shareText = [
@@ -761,8 +760,6 @@ export function PhotoLightbox({
                     <dd>{photo.locationDisplay ?? '—'}</dd>
                     <dt>{photo.capturedAtIsDateOnly ? 'Date' : 'Date & time'}</dt>
                     <dd>{filenameDateLong ?? '—'}</dd>
-                    <dt>Sequence</dt>
-                    <dd>{photo.sequence != null ? photo.sequence : '—'}</dd>
                     <dt>Camera (filename)</dt>
                     <dd>{photo.cameraLabel ?? '—'}</dd>
                     <dt>Event (filename)</dt>
