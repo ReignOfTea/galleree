@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { galleryManifestPlugin } from './vite/galleryManifestPlugin'
+import { gallerySharePagesPlugin } from './vite/gallerySharePagesPlugin'
 import { siteHtmlMetaPlugin } from './vite/siteHtmlMetaPlugin'
 
 // Base URL: default /. Use VITE_BASE=/galleree/ only for reignoftea.github.io/galleree; use / for gallery.reignoftea.com.
@@ -17,6 +18,7 @@ export default defineConfig({
   plugins: [
     react(),
     galleryManifestPlugin(),
+    gallerySharePagesPlugin({ base }),
     siteHtmlMetaPlugin({ base }),
   ],
   base,

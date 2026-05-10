@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Plugin } from 'vite'
+import { absolutePublicUrl, loadSiteForShare } from './galleryShareHtml'
+import { galleryShareStubId } from './sharePageHash'
 
 const VIRTUAL_ID = 'virtual:gallery-manifest'
 const RESOLVED_VIRTUAL_ID = '\0' + VIRTUAL_ID
@@ -41,12 +43,14 @@ function isInsideDir(file: string, dir: string): boolean {
 
 export function galleryManifestPlugin(): Plugin {
   let root = ''
+  let viteBase = '/'
 
   return {
     name: 'galleree-gallery-manifest',
 
     configResolved(config) {
       root = config.root
+      viteBase = config.base
     },
 
     resolveId(id) {
@@ -58,13 +62,32 @@ export function galleryManifestPlugin(): Plugin {
 
       const galleryDir = path.join(root, 'public', 'gallery')
       const files = readGalleryFilenames(root)
+      const site = loadSiteForShare(root)
       const manifest = {
         generatedAt: new Date().toISOString(),
         images: files.map((file) => {
           const thumb = thumbRelativePath(file)
           const thumbAbs = path.join(galleryDir, ...thumb.split('/'))
           const hasThumb = fs.existsSync(thumbAbs)
-          return hasThumb ? { file, thumb } : { file }
+          const img: {
+            file: string
+            thumb?: string
+            shareStub?: string
+            sharePageUrl?: string
+          } = {
+            file,
+          }
+          if (hasThumb) img.thumb = thumb
+          if (site.siteUrl) {
+            const stubPath = `share/p/${galleryShareStubId(file)}.html`
+            img.shareStub = stubPath
+            img.sharePageUrl = absolutePublicUrl(
+              site.siteUrl,
+              viteBase,
+              stubPath,
+            )
+          }
+          return img
         }),
       }
 

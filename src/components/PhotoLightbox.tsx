@@ -131,6 +131,9 @@ export function PhotoLightbox({
   const pageUrl =
     typeof window !== 'undefined' ? window.location.href.split('#')[0] : ''
 
+  /** Rich-preview URL for Discord etc.; `#photo=` is never seen by crawlers. */
+  const shareLinkUrl = photo.sharePageUrl ?? pageUrl
+
   const dateLabel =
     photo.capturedAt != null
       ? formatCaptureDate(
@@ -397,20 +400,25 @@ export function PhotoLightbox({
       imageFilename: photo.file,
       title: siteTitle,
       text: shareText,
-      pageUrl,
+      pageUrl: shareLinkUrl,
     }
-  }, [photo.url, photo.file, siteTitle, shareText, pageUrl])
+  }, [photo.url, photo.file, siteTitle, shareText, shareLinkUrl])
 
   const handleSharePhoto = useCallback(async () => {
     setShareNotice(null)
     const r = await shareGalleryPhoto(sharePhotoPayload())
-    if (r.ok && r.mode === 'clipboard-image') {
-      setShareNotice('Image copied — paste it into your post.')
-      window.setTimeout(() => setShareNotice(null), 6000)
+    if (r.ok === false) {
+      if (r.reason !== 'abort') {
+        setShareNotice(r.message ?? 'Could not share this photo.')
+        window.setTimeout(() => setShareNotice(null), 6000)
+      }
       return
     }
-    if (!r.ok && r.reason !== 'abort') {
-      setShareNotice(r.message ?? 'Could not share this photo.')
+    if (r.mode === 'clipboard-image') {
+      setShareNotice('Image copied — paste it into your post.')
+      window.setTimeout(() => setShareNotice(null), 6000)
+    } else if (r.mode === 'clipboard-url') {
+      setShareNotice('Link copied — paste it where you want to share.')
       window.setTimeout(() => setShareNotice(null), 6000)
     }
   }, [sharePhotoPayload])
@@ -419,22 +427,25 @@ export function PhotoLightbox({
     async (intentUrl: string) => {
       setShareNotice(null)
       const r = await shareGalleryPhoto(sharePhotoPayload())
-      if (r.ok) {
-        if (r.mode === 'clipboard-image') {
-          setShareNotice('Image copied — paste into your post.')
-          window.setTimeout(() => setShareNotice(null), 7000)
-        }
+      if (r.ok === false) {
+        if (r.reason === 'abort') return
+        window.open(intentUrl, '_blank', 'noopener,noreferrer')
         return
       }
-      if (r.reason === 'abort') return
-      window.open(intentUrl, '_blank', 'noopener,noreferrer')
+      if (r.mode === 'clipboard-image') {
+        setShareNotice('Image copied — paste into your post.')
+        window.setTimeout(() => setShareNotice(null), 7000)
+      } else if (r.mode === 'clipboard-url') {
+        setShareNotice('Link copied — paste it where you want to share.')
+        window.setTimeout(() => setShareNotice(null), 7000)
+      }
     },
     [sharePhotoPayload],
   )
 
   const copyPageLink = async () => {
     try {
-      await navigator.clipboard.writeText(pageUrl)
+      await navigator.clipboard.writeText(shareLinkUrl)
       setCopiedPage(true)
       window.setTimeout(() => setCopiedPage(false), 2000)
     } catch {
@@ -590,7 +601,7 @@ export function PhotoLightbox({
                   type="button"
                   className="lightbox-menu-item"
                   onClick={() =>
-                    void handleSocialIntent(shareUrlTwitter(pageUrl, shareText))
+                    void handleSocialIntent(shareUrlTwitter(shareLinkUrl, shareText))
                   }
                 >
                   Post on X
@@ -598,7 +609,7 @@ export function PhotoLightbox({
                 <button
                   type="button"
                   className="lightbox-menu-item"
-                  onClick={() => void handleSocialIntent(shareUrlFacebook(pageUrl))}
+                  onClick={() => void handleSocialIntent(shareUrlFacebook(shareLinkUrl))}
                 >
                   Facebook
                 </button>
@@ -606,7 +617,7 @@ export function PhotoLightbox({
                   type="button"
                   className="lightbox-menu-item"
                   onClick={() =>
-                    void handleSocialIntent(shareUrlLinkedIn(pageUrl))
+                    void handleSocialIntent(shareUrlLinkedIn(shareLinkUrl))
                   }
                 >
                   LinkedIn

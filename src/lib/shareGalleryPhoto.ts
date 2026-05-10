@@ -3,12 +3,16 @@
  * - Web Share Level 2: OS share sheet with the actual image file (common on mobile).
  * - Else Web Share with URL + text only.
  * - Else copy image to clipboard (paste into Instagram/X/etc. manually on desktop).
+ * - Else copy the gallery page URL (share stub when present) for link previews / paste.
  *
  * Note: Social-site “intent” URLs cannot attach images; file sharing uses the Web Share API.
  */
 
 export type ShareGalleryResult =
-  | { ok: true; mode: 'native-files' | 'native-url' | 'clipboard-image' }
+  | {
+      ok: true
+      mode: 'native-files' | 'native-url' | 'clipboard-image' | 'clipboard-url'
+    }
   | { ok: false; reason: 'abort' | 'unsupported' | 'error'; message?: string }
 
 function mimeFromFilename(name: string): string {
@@ -24,6 +28,16 @@ async function fetchImageBlob(imageUrl: string): Promise<Blob> {
   const res = await fetch(imageUrl, { mode: 'cors', credentials: 'omit' })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.blob()
+}
+
+async function copyPageUrlToClipboard(pageUrl: string): Promise<boolean> {
+  try {
+    if (!navigator.clipboard?.writeText) return false
+    await navigator.clipboard.writeText(pageUrl)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function copyImageBlob(blob: Blob): Promise<boolean> {
@@ -124,6 +138,10 @@ export async function shareGalleryPhoto(opts: {
 
   if (blob && (await copyImageBlob(blob))) {
     return { ok: true, mode: 'clipboard-image' }
+  }
+
+  if (pageUrl && (await copyPageUrlToClipboard(pageUrl))) {
+    return { ok: true, mode: 'clipboard-url' }
   }
 
   return {
