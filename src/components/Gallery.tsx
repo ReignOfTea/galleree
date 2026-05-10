@@ -11,6 +11,10 @@ import type { GalleryEntry } from '../hooks/useGalleryManifest'
 import { GalleryRow } from './GalleryRow'
 import { PhotoLightbox, type LightboxPhoto } from './PhotoLightbox'
 
+function toLightboxPhoto(entry: GalleryEntry): LightboxPhoto {
+  return entry
+}
+
 type Props = {
   items: GalleryEntry[]
   /** Full gallery (ignores tag filter) for resolving `#photo=` / `?photo=` links. */
@@ -30,12 +34,7 @@ export function Gallery({ items, allItems, siteTitle }: Props) {
       }
       const entry = allItems.find((e) => e.file === file)
       if (entry) {
-        setLightbox({
-          file: entry.file,
-          url: entry.url,
-          tags: entry.tags,
-          locationDisplay: entry.locationDisplay,
-        })
+        setLightbox(toLightboxPhoto(entry))
       } else {
         setLightbox(null)
         clearPhotoFromLocation()
@@ -52,12 +51,7 @@ export function Gallery({ items, allItems, siteTitle }: Props) {
   }, [allItems])
 
   const openLightbox = useCallback((item: GalleryEntry) => {
-    setLightbox({
-      file: item.file,
-      url: item.url,
-      tags: item.tags,
-      locationDisplay: item.locationDisplay,
-    })
+    setLightbox(toLightboxPhoto(item))
   }, [])
 
   useEffect(() => {
@@ -73,12 +67,7 @@ export function Gallery({ items, allItems, siteTitle }: Props) {
         if (i < 0) return prev
         const nextEntry = items[i + direction]
         if (!nextEntry) return prev
-        return {
-          file: nextEntry.file,
-          url: nextEntry.url,
-          tags: nextEntry.tags,
-          locationDisplay: nextEntry.locationDisplay,
-        }
+        return toLightboxPhoto(nextEntry)
       })
     },
     [items],

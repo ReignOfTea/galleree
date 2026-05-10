@@ -48,6 +48,7 @@ jobs:
       - name: Build
         env:
           VITE_BASE: ${{ vars.VITE_BASE }}
+        # Runs scripts/generate-gallery-thumbs.mjs first so dist includes gallery/thumbs/*.jpg for the grid.
         run: npm run build
 
       - name: Upload Pages artifact

@@ -19,9 +19,19 @@ function readGalleryFilenames(root: string): string[] {
   if (!fs.existsSync(galleryDir)) return []
 
   return fs
-    .readdirSync(galleryDir)
-    .filter((name) => IMAGE_EXT.has(path.extname(name).toLowerCase()))
+    .readdirSync(galleryDir, { withFileTypes: true })
+    .filter(
+      (e) =>
+        e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase()),
+    )
+    .map((e) => e.name)
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
+
+/** JPEG thumb path under `gallery/` — same stem as source file */
+function thumbRelativePath(galleryFile: string): string {
+  const stem = path.basename(galleryFile, path.extname(galleryFile))
+  return path.join('thumbs', `${stem}.jpg`).replace(/\\/g, '/')
 }
 
 function isInsideDir(file: string, dir: string): boolean {
@@ -46,10 +56,16 @@ export function galleryManifestPlugin(): Plugin {
     load(id) {
       if (id !== RESOLVED_VIRTUAL_ID) return
 
+      const galleryDir = path.join(root, 'public', 'gallery')
       const files = readGalleryFilenames(root)
       const manifest = {
         generatedAt: new Date().toISOString(),
-        images: files.map((file) => ({ file })),
+        images: files.map((file) => {
+          const thumb = thumbRelativePath(file)
+          const thumbAbs = path.join(galleryDir, ...thumb.split('/'))
+          const hasThumb = fs.existsSync(thumbAbs)
+          return hasThumb ? { file, thumb } : { file }
+        }),
       }
 
       return `export default ${JSON.stringify(manifest)}`

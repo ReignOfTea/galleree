@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import type { GalleryEntry } from '../hooks/useGalleryManifest'
+import { useImageExif } from '../hooks/useImageExif'
+import { galleryImageDescription, formatCaptureDate } from '../lib/galleryLabels'
 
-export type LightboxPhoto = {
-  file: string
-  url: string
-  tags: string[]
-  locationDisplay: string | null
-}
+export type LightboxPhoto = GalleryEntry
 
 type Props = {
   photo: LightboxPhoto
@@ -121,6 +119,8 @@ export function PhotoLightbox({
   const [view, setView] = useState({ scale: MIN_SCALE, pan: { x: 0, y: 0 } as Pan })
   const [copiedPage, setCopiedPage] = useState(false)
   const [copiedImage, setCopiedImage] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const exifState = useImageExif(detailsOpen ? photo.url : null)
 
   const resetView = useCallback(() => {
     setView({ scale: MIN_SCALE, pan: { x: 0, y: 0 } })
@@ -129,9 +129,41 @@ export function PhotoLightbox({
   const pageUrl =
     typeof window !== 'undefined' ? window.location.href.split('#')[0] : ''
 
-  const shareText = [siteTitle, photo.locationDisplay, photo.file]
+  const dateLabel =
+    photo.capturedAt != null
+      ? formatCaptureDate(
+          photo.capturedAt,
+          photo.capturedAtIsDateOnly,
+          'toolbar',
+        )
+      : null
+
+  const metaParts = [
+    dateLabel,
+    photo.cameraLabel,
+    photo.eventLabel,
+    photo.sequence != null ? `#${photo.sequence}` : null,
+  ].filter(Boolean) as string[]
+
+  const shareText = [
+    siteTitle,
+    photo.displayTitle,
+    photo.locationDisplay,
+    photo.file,
+  ]
     .filter(Boolean)
     .join(' — ')
+
+  const imageDescription = galleryImageDescription(photo)
+
+  const filenameDateLong =
+    photo.capturedAt != null
+      ? formatCaptureDate(
+          photo.capturedAt,
+          photo.capturedAtIsDateOnly,
+          'detailsLong',
+        )
+      : null
 
   const exitFullscreenIfNeeded = useCallback(() => {
     if (getFullscreenElement()) {
@@ -188,6 +220,10 @@ export function PhotoLightbox({
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (detailsOpen) {
+          setDetailsOpen(false)
+          return
+        }
         handleClose()
         return
       }
@@ -224,7 +260,14 @@ export function PhotoLightbox({
       document.body.style.overflow = prevOverflow
       exitFullscreenIfNeeded()
     }
-  }, [handleClose, exitFullscreenIfNeeded, onAdjacent, resetView, zoomAtCenter])
+  }, [
+    handleClose,
+    exitFullscreenIfNeeded,
+    onAdjacent,
+    resetView,
+    zoomAtCenter,
+    detailsOpen,
+  ])
 
   const pinchRef = useRef<{
     dist: number
@@ -423,9 +466,25 @@ export function PhotoLightbox({
             >
               <span aria-hidden="true">×</span>
             </button>
-            <p id="lightbox-title" className="lightbox-title">
-              {photo.file}
-            </p>
+            <div className="lightbox-title-stack">
+              {photo.displayTitle ? (
+                <>
+                  <p id="lightbox-title" className="lightbox-title lightbox-title-primary">
+                    {photo.displayTitle}
+                  </p>
+                  <p className="lightbox-title lightbox-title-filename">{photo.file}</p>
+                </>
+              ) : (
+                <p id="lightbox-title" className="lightbox-title">
+                  {photo.file}
+                </p>
+              )}
+              {metaParts.length > 0 ? (
+                <p className="lightbox-title-meta" aria-label="Photo details">
+                  {metaParts.join(' · ')}
+                </p>
+              ) : null}
+            </div>
             <span className="lightbox-zoom-readout" aria-live="polite">
               {zoomPercent}%
             </span>
@@ -480,6 +539,17 @@ export function PhotoLightbox({
               onClick={toggleFullscreen}
             >
               Fullscreen
+            </button>
+            <button
+              type="button"
+              className={
+                detailsOpen ? 'lightbox-tool-quiet lightbox-tool-quiet-active' : 'lightbox-tool-quiet'
+              }
+              aria-expanded={detailsOpen}
+              aria-controls="lightbox-details-panel"
+              onClick={() => setDetailsOpen((o) => !o)}
+            >
+              Details
             </button>
             <details className="lightbox-overflow">
               <summary className="lightbox-overflow-trigger">More</summary>
@@ -568,7 +638,7 @@ export function PhotoLightbox({
             >
               <img
                 src={photo.url}
-                alt={photo.file}
+                alt={imageDescription}
                 decoding="async"
                 draggable={false}
                 className="lightbox-image"
@@ -580,6 +650,12 @@ export function PhotoLightbox({
         <p className="lightbox-hint-float">
           Scroll to zoom · drag to pan · double-click ·{' '}
           <kbd>Esc</kbd> close
+          {detailsOpen ? (
+            <>
+              {' '}
+              · <kbd>Esc</kbd> also closes details
+            </>
+          ) : null}
           {onAdjacent ? (
             <>
               {' '}
@@ -587,6 +663,106 @@ export function PhotoLightbox({
             </>
           ) : null}
         </p>
+
+        {detailsOpen ? (
+          <>
+            <button
+              type="button"
+              className="lightbox-details-scrim"
+              aria-label="Close details panel"
+              onClick={() => setDetailsOpen(false)}
+            />
+            <aside
+              id="lightbox-details-panel"
+              className="lightbox-details-panel"
+              role="complementary"
+              aria-labelledby="lightbox-details-heading"
+            >
+              <div className="lightbox-details-panel-header">
+                <h2 id="lightbox-details-heading" className="lightbox-details-heading">
+                  Photo details
+                </h2>
+                <button
+                  type="button"
+                  className="lightbox-details-close"
+                  onClick={() => setDetailsOpen(false)}
+                  aria-label="Close details"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="lightbox-details-body">
+                <section className="lightbox-details-section" aria-labelledby="lightbox-details-filename">
+                  <h3 id="lightbox-details-filename" className="lightbox-details-section-title">
+                    From filename
+                  </h3>
+                  <dl className="lightbox-details-dl">
+                    <dt>Title</dt>
+                    <dd>{photo.displayTitle ?? '—'}</dd>
+                    <dt>Tags</dt>
+                    <dd>
+                      {photo.tags.length > 0 ? (
+                        <ul className="lightbox-details-taglist">
+                          {[...photo.tags]
+                            .sort((a, b) => a.localeCompare(b))
+                            .map((t) => (
+                              <li key={t}>{t}</li>
+                            ))}
+                        </ul>
+                      ) : (
+                        '—'
+                      )}
+                    </dd>
+                    <dt>Location</dt>
+                    <dd>{photo.locationDisplay ?? '—'}</dd>
+                    <dt>{photo.capturedAtIsDateOnly ? 'Date' : 'Date & time'}</dt>
+                    <dd>{filenameDateLong ?? '—'}</dd>
+                    <dt>Sequence</dt>
+                    <dd>{photo.sequence != null ? photo.sequence : '—'}</dd>
+                    <dt>Camera (filename)</dt>
+                    <dd>{photo.cameraLabel ?? '—'}</dd>
+                    <dt>Event (filename)</dt>
+                    <dd>{photo.eventLabel ?? '—'}</dd>
+                    <dt>Convention</dt>
+                    <dd>{photo.parseMode === 'structured' ? 'Structured filename' : 'Legacy filename'}</dd>
+                    <dt>File name</dt>
+                    <dd className="lightbox-details-mono">{photo.file}</dd>
+                  </dl>
+                </section>
+
+                <section className="lightbox-details-section" aria-labelledby="lightbox-details-exif">
+                  <h3 id="lightbox-details-exif" className="lightbox-details-section-title">
+                    From image file
+                  </h3>
+                  {exifState.status === 'idle' || exifState.status === 'loading' ? (
+                    <p className="lightbox-details-muted">Reading embedded metadata…</p>
+                  ) : null}
+                  {exifState.status === 'error' ? (
+                    <p className="lightbox-details-note" role="status">
+                      {exifState.message}
+                    </p>
+                  ) : null}
+                  {exifState.status === 'ok' && exifState.rows.length === 0 ? (
+                    <p className="lightbox-details-muted">
+                      No EXIF / IPTC / XMP blocks found in this file (common for exported or web-saved
+                      JPEGs).
+                    </p>
+                  ) : null}
+                  {exifState.status === 'ok' && exifState.rows.length > 0 ? (
+                    <dl className="lightbox-details-dl">
+                      {exifState.rows.map((row, i) => (
+                        <div key={`${row.label}-${i}`} className="lightbox-details-pair">
+                          <dt>{row.label}</dt>
+                          <dd>{row.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                </section>
+              </div>
+            </aside>
+          </>
+        ) : null}
       </div>
     </div>
   )

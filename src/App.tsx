@@ -17,14 +17,23 @@ export default function App() {
 
   const annotated: GalleryEntry[] = useMemo(
     () =>
-      entries.map((e) => {
-        const meta = parseFilenameMeta(e.file)
-        return {
-          ...e,
-          tags: meta.tags,
-          locationDisplay: meta.locationDisplay,
-        }
-      }),
+      entries
+        .map((e) => {
+          const meta = parseFilenameMeta(e.file)
+          return {
+            ...e,
+            ...meta,
+          }
+        })
+        .sort((a, b) => {
+          const ta = a.capturedAt ?? Number.NEGATIVE_INFINITY
+          const tb = b.capturedAt ?? Number.NEGATIVE_INFINITY
+          if (tb !== ta) return tb - ta
+          const sa = a.sequence ?? Number.NEGATIVE_INFINITY
+          const sb = b.sequence ?? Number.NEGATIVE_INFINITY
+          if (sb !== sa) return sb - sa
+          return a.file.localeCompare(b.file)
+        }),
     [entries],
   )
 

@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { LoadGate } from '../lib/loadGate'
 import { preloadImage } from '../lib/preloadImage'
 import type { GalleryEntry } from '../hooks/useGalleryManifest'
+import {
+  galleryCaptionMetaParts,
+  galleryImageDescription,
+} from '../lib/galleryLabels'
 
 type Props = {
   row: GalleryEntry[]
@@ -40,11 +44,12 @@ export function GalleryRow({ row, columns, gate, onPhotoOpen }: Props) {
     ;(async () => {
       for (let i = 0; i < row.length; i++) {
         if (cancelled) break
-        const url = row[i]?.url
-        if (!url) continue
+        const item = row[i]
+        if (!item) continue
+        const gridUrl = item.thumbUrl ?? item.url
 
         try {
-          await gate.run(() => preloadImage(url))
+          await gate.run(() => preloadImage(gridUrl))
         } catch {
           continue
         }
@@ -52,7 +57,7 @@ export function GalleryRow({ row, columns, gate, onPhotoOpen }: Props) {
         if (!cancelled) {
           setSources((prev) => {
             const next = [...prev]
-            next[i] = url
+            next[i] = gridUrl
             return next
           })
         }
@@ -72,30 +77,51 @@ export function GalleryRow({ row, columns, gate, onPhotoOpen }: Props) {
         gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
       }}
     >
-      {row.map((item, i) => (
-        <figure key={item.file} className="gallery-cell">
-          <button
-            type="button"
-            className="gallery-thumb"
-            aria-label={`Open ${item.file} fullscreen`}
-            disabled={!sources[i]}
-            onClick={() => sources[i] && onPhotoOpen?.(item)}
-          >
-            <div className="gallery-aspect">
-              {sources[i] ? (
-                <img
-                  src={sources[i]!}
-                  alt=""
-                  decoding="async"
-                  fetchPriority="low"
-                />
-              ) : (
-                <div className="gallery-skeleton" aria-hidden />
-              )}
-            </div>
-          </button>
-        </figure>
-      ))}
+      {row.map((item, i) => {
+        const captionTitle = item.displayTitle ?? item.file
+        const metaLine = galleryCaptionMetaParts(item)
+        const captionTags = item.tags.filter((t) => t !== item.locationDisplay)
+
+        return (
+          <figure key={item.file} className="gallery-cell">
+            <button
+              type="button"
+              className="gallery-thumb"
+              aria-label={`Open ${captionTitle} fullscreen`}
+              disabled={!sources[i]}
+              onClick={() => sources[i] && onPhotoOpen?.(item)}
+            >
+              <div className="gallery-aspect">
+                {sources[i] ? (
+                  <img
+                    src={sources[i]!}
+                    alt={galleryImageDescription(item)}
+                    decoding="async"
+                    fetchPriority="low"
+                  />
+                ) : (
+                  <div className="gallery-skeleton" aria-hidden />
+                )}
+              </div>
+            </button>
+            <figcaption className="gallery-caption">
+              <span className="gallery-caption-title">{captionTitle}</span>
+              {metaLine.length > 0 ? (
+                <span className="gallery-caption-meta">{metaLine.join(' · ')}</span>
+              ) : null}
+              {captionTags.length > 0 ? (
+                <ul className="gallery-caption-tags" aria-label="Tags">
+                  {captionTags.map((tag) => (
+                    <li key={tag}>
+                      <span className="gallery-caption-tag">{tag}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </figcaption>
+          </figure>
+        )
+      })}
     </div>
   )
 }
