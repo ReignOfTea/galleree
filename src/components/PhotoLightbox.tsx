@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { GalleryEntry } from '../hooks/useGalleryManifest'
 import { useImageExif } from '../hooks/useImageExif'
 import { galleryImageDescription, formatCaptureDate } from '../lib/galleryLabels'
+import { shareGalleryPhoto } from '../lib/shareGalleryPhoto'
 
 export type LightboxPhoto = GalleryEntry
 
@@ -119,6 +120,7 @@ export function PhotoLightbox({
   const [view, setView] = useState({ scale: MIN_SCALE, pan: { x: 0, y: 0 } as Pan })
   const [copiedPage, setCopiedPage] = useState(false)
   const [copiedImage, setCopiedImage] = useState(false)
+  const [shareNotice, setShareNotice] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const exifState = useImageExif(detailsOpen ? photo.url : null)
 
@@ -389,20 +391,46 @@ export function PhotoLightbox({
     if (e.touches.length < 2) pinchRef.current = null
   }
 
-  const nativeShare =
-    typeof navigator !== 'undefined' && navigator.share
-      ? async () => {
-          try {
-            await navigator.share({
-              title: siteTitle,
-              text: shareText,
-              url: pageUrl,
-            })
-          } catch (err) {
-            if (err instanceof Error && err.name === 'AbortError') return
-          }
+  const sharePhotoPayload = useCallback(() => {
+    return {
+      imageUrl: photo.url,
+      imageFilename: photo.file,
+      title: siteTitle,
+      text: shareText,
+      pageUrl,
+    }
+  }, [photo.url, photo.file, siteTitle, shareText, pageUrl])
+
+  const handleSharePhoto = useCallback(async () => {
+    setShareNotice(null)
+    const r = await shareGalleryPhoto(sharePhotoPayload())
+    if (r.ok && r.mode === 'clipboard-image') {
+      setShareNotice('Image copied — paste it into your post.')
+      window.setTimeout(() => setShareNotice(null), 6000)
+      return
+    }
+    if (!r.ok && r.reason !== 'abort') {
+      setShareNotice(r.message ?? 'Could not share this photo.')
+      window.setTimeout(() => setShareNotice(null), 6000)
+    }
+  }, [sharePhotoPayload])
+
+  const handleSocialIntent = useCallback(
+    async (intentUrl: string) => {
+      setShareNotice(null)
+      const r = await shareGalleryPhoto(sharePhotoPayload())
+      if (r.ok) {
+        if (r.mode === 'clipboard-image') {
+          setShareNotice('Image copied — paste into your post.')
+          window.setTimeout(() => setShareNotice(null), 7000)
         }
-      : null
+        return
+      }
+      if (r.reason === 'abort') return
+      window.open(intentUrl, '_blank', 'noopener,noreferrer')
+    },
+    [sharePhotoPayload],
+  )
 
   const copyPageLink = async () => {
     try {
@@ -524,15 +552,13 @@ export function PhotoLightbox({
             >
               Save
             </a>
-            {nativeShare ? (
-              <button
-                type="button"
-                className="lightbox-tool-quiet"
-                onClick={() => void nativeShare()}
-              >
-                Share
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className="lightbox-tool-quiet"
+              onClick={() => void handleSharePhoto()}
+            >
+              Share
+            </button>
             <button
               type="button"
               className="lightbox-tool-quiet"
@@ -560,30 +586,31 @@ export function PhotoLightbox({
                 <button type="button" className="lightbox-menu-item" onClick={() => void copyImageLink()}>
                   {copiedImage ? 'Link copied' : 'Copy image link'}
                 </button>
-                <a
+                <button
+                  type="button"
                   className="lightbox-menu-item"
-                  href={shareUrlTwitter(pageUrl, shareText)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={() =>
+                    void handleSocialIntent(shareUrlTwitter(pageUrl, shareText))
+                  }
                 >
                   Post on X
-                </a>
-                <a
+                </button>
+                <button
+                  type="button"
                   className="lightbox-menu-item"
-                  href={shareUrlFacebook(pageUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={() => void handleSocialIntent(shareUrlFacebook(pageUrl))}
                 >
                   Facebook
-                </a>
-                <a
+                </button>
+                <button
+                  type="button"
                   className="lightbox-menu-item"
-                  href={shareUrlLinkedIn(pageUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={() =>
+                    void handleSocialIntent(shareUrlLinkedIn(pageUrl))
+                  }
                 >
                   LinkedIn
-                </a>
+                </button>
               </div>
             </details>
           </div>
@@ -646,6 +673,12 @@ export function PhotoLightbox({
             </div>
           </div>
         </div>
+
+        {shareNotice ? (
+          <p className="lightbox-share-notice" role="status" aria-live="polite">
+            {shareNotice}
+          </p>
+        ) : null}
 
         <p className="lightbox-hint-float">
           Scroll to zoom · drag to pan · double-click ·{' '}

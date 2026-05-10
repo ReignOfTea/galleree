@@ -857,6 +857,29 @@
   -webkit-user-drag: none;
 }
 
+.lightbox-share-notice {
+  pointer-events: none;
+  position: absolute;
+  bottom: 2.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: min(92vw, 26rem);
+  padding: 0.35rem 0.65rem;
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(12, 12, 12, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  z-index: 56;
+}
+
 .lightbox-hint-float {
   pointer-events: none;
   position: absolute;
@@ -1145,6 +1168,13 @@
 
 :root[data-theme='light'] .lightbox-hint-float {
   color: color-mix(in oklab, var(--muted) 88%, var(--text-strong));
+}
+
+:root[data-theme='light'] .lightbox-share-notice {
+  color: var(--text-strong);
+  background: color-mix(in oklab, var(--bg-page) 90%, transparent);
+  border-color: var(--hairline);
+  box-shadow: var(--frame-shadow);
 }
 
 :root[data-theme='light'] .lightbox-hint-float kbd {
