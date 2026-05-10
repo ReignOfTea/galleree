@@ -124,6 +124,11 @@ export function siteHtmlMetaPlugin(options: SiteHtmlMetaPluginOptions): Plugin {
 
         if (typeof site.ogImage === 'string' && site.ogImage.trim()) {
           ogImageRel = site.ogImage.trim().replace(/^\/+/, '')
+        } else if (
+          typeof site.logo === 'string' &&
+          site.logo.trim()
+        ) {
+          ogImageRel = site.logo.trim().replace(/^\/+/, '')
         } else {
           const first = readFirstGalleryFile(root)
           if (first) ogImageRel = `gallery/${first}`
