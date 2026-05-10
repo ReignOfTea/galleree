@@ -1,0 +1,72 @@
+:root {
+  --font-display: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --font-body: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    font-size: 16px;
+  }
+}
+
+:root:not([data-theme]),
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --bg-page: #f4f4f2;
+  --text: #57534e;
+  --text-strong: #1c1917;
+  --muted: #78716c;
+  --accent: #0c8b8b;
+  --hairline: color-mix(in oklab, var(--text-strong) 8%, transparent);
+  --skeleton: #ececea;
+  --frame-shadow: 0 8px 32px rgba(28, 25, 23, 0.06);
+
+  color: var(--text);
+  background: var(--bg-page);
+  color-scheme: only light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #141413;
+  --bg-page: #0c0c0b;
+  --text: #a8a29e;
+  --text-strong: #fafaf9;
+  --muted: #78716c;
+  --accent: #5eead4;
+  --hairline: color-mix(in oklab, var(--text-strong) 11%, transparent);
+  --skeleton: #1c1c1a;
+  --frame-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+
+  color: var(--text);
+  background: var(--bg-page);
+  color-scheme: only dark;
+}
+
+#root {
+  width: 100%;
+  min-height: 100svh;
+  margin: 0 auto;
+  box-sizing: border-box;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text-strong);
+}

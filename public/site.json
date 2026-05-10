@@ -1,0 +1,21 @@
+{
+  "lang": "en-GB",
+  "siteUrl": "https://gallery.reignoftea.com",
+  "title": "Reign of Tea",
+  "logo": "logo.svg",
+  "logoAlt": "Reign of Tea",
+  "header": "logo",
+  "logoMaxHeight": "4.25rem",
+  "logoMaxWidth": "min(100%, 36rem)",
+  "tagline": "Just go out and do stuff - It's free.",
+  "bio": "Based in Manchester, UK - Willing to attend exciting events.",
+  "collectionsLabel": "Collections",
+  "social": [
+    { "label": "X", "url": "https://x.com/ReignOfTea" },
+    { "label": "Email", "url": "mailto:reignoftea@gmail.com" },
+    { "label": "Instagram", "url": "https://www.instagram.com/reignoftea/" },
+    { "label": "TikTok", "url": "https://www.tiktok.com/@reignoftea" },
+    { "label": "Facebook", "url": "https://www.facebook.com/reign.tea.5" },
+    { "label": "YouTube", "url": "https://www.youtube.com/@reignoftea" }
+  ]
+}
