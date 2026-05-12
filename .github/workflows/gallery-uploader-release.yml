@@ -1,0 +1,116 @@
+# GitHub Releases for the Galleree Upload Tauri app.
+#
+# • Push to main/master (when paths below change): creates a prerelease with tag
+#   gallery-uploader-v<version>-r<run_number> (version from tauri.conf.json).
+# • Push tag gallery-uploader-v*: stable release (tag must match shipped version intent).
+#
+# Bump tools/gallery-uploader/src-tauri/tauri.conf.json (+ Cargo.toml) for meaningful semver;
+# run number keeps every main/master build unique.
+
+name: Gallery uploader — release
+
+on:
+  push:
+    branches: ['main', 'master']
+    tags: ['gallery-uploader-v*']
+    paths:
+      - 'tools/gallery-uploader/**'
+      - '.github/workflows/gallery-uploader-release.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gallery-uploader-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.meta.outputs.tag_name }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/gallery-uploader-v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+            VER="${TAG#gallery-uploader-v}"
+            echo "release_name=Galleree Upload v${VER}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            BASE=$(jq -r .version tools/gallery-uploader/src-tauri/tauri.conf.json)
+            echo "tag_name=gallery-uploader-v${BASE}-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "release_name=Galleree Upload v${BASE} (build ${GITHUB_RUN_NUMBER})" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            label: macos-aarch64
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            label: macos-x86_64
+            args: '--target x86_64-apple-darwin'
+          - platform: ubuntu-22.04
+            label: linux-x64
+            args: ''
+          - platform: windows-latest
+            label: windows-x64
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/gallery-uploader/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/gallery-uploader/src-tauri
+          shared-key: gallery-uploader-release-${{ matrix.label }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: tools/gallery-uploader
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: tools/gallery-uploader
+          tagName: ${{ needs.prepare.outputs.tag_name }}
+          releaseName: ${{ needs.prepare.outputs.release_name }}
+          releaseBody: 'Installers for Windows, macOS (Apple Silicon and Intel), and Linux.'
+          generateReleaseNotes: true
+          releaseDraft: false
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          includeUpdaterJson: false
+          args: ${{ matrix.args }}

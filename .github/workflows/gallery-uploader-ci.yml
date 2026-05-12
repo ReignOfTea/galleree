@@ -1,0 +1,77 @@
+# Build the Galleree Upload Tauri app (workflow artifacts only). No GitHub Release.
+# Pushes to main/master are released by gallery-uploader-release.yml instead.
+# Artifacts: Actions run → "galleree-upload-<linux|windows|macos>".
+
+name: Gallery uploader (Tauri)
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - master
+    paths:
+      - 'tools/gallery-uploader/**'
+      - '.github/workflows/gallery-uploader-ci.yml'
+  pull_request:
+    paths:
+      - 'tools/gallery-uploader/**'
+      - '.github/workflows/gallery-uploader-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gallery-uploader-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: linux
+          - os: windows-latest
+            label: windows
+          - os: macos-latest
+            label: macos
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: tools/gallery-uploader
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.label == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/gallery-uploader/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/gallery-uploader/src-tauri
+          shared-key: gallery-uploader-${{ matrix.label }}
+
+      - name: Install dependencies & build
+        run: |
+          npm ci
+          npm run tauri build
+
+      - name: Upload bundle directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: galleree-upload-${{ matrix.label }}
+          path: tools/gallery-uploader/src-tauri/target/release/bundle/
+          if-no-files-found: warn

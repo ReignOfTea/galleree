@@ -1,0 +1,23 @@
+[package]
+name = "gallery-uploader"
+version = "0.1.0"
+description = "Bulk upload photos to the galleree git repository"
+edition = "2021"
+
+[lib]
+name = "gallery_uploader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service"] }
+url = "2"
+base64 = { version = "0.22", features = ["std"] }
+chrono = "0.4"
+kamadak-exif = "0.6"

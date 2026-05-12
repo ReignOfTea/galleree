@@ -8,7 +8,7 @@
  *
  * - **titleSlug**: first segment without a known prefix; hyphens → spaces, words title-cased (e.g. `evening-rush` → "Evening Rush").
  * - **tags**: `tags-` then tags separated by `--`; words inside a tag use single hyphens (`urban--new-york-city` → Urban, New York City).
- * - **loc**: `loc-{citySlug}-{CC}` → "City, CC", or **`loc-{citySlug},{CC}`** (comma before country, e.g. `loc-Bury,UK`).
+ * - **loc**: `loc-{citySlug}-{CC}` → "City, CC" (preferred). **`loc-{citySlug},{CC}`** is still parsed for older files (e.g. `loc-Bury,UK`).
  * - **dt**: optional — `dt-YYYYMMDD-HHmmss` (local wall time) **or** date-only `dt-YYYYMMDD` (stored as local midnight; UI omits clock time).
  * - **cam** / **evt**: optional camera or event label slugs.
  * - **seq-…** (legacy): if still present in old files, the segment is skipped and not shown; sort order uses capture date/time.
