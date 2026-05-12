@@ -92,6 +92,7 @@ export default function App() {
   /** Multi-line trace for the last failed upload (shown in expandable details). */
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const repoPrepareLock = useRef(false)
+  const uploadBusyRef = useRef(false)
 
   const allTitlesOk = useMemo(
     () => rows.length > 0 && rows.every((r) => r.title.trim().length > 0),
@@ -340,6 +341,8 @@ export default function App() {
       return
     }
     if (rows.length === 0) return
+    if (uploadBusyRef.current) return
+    uploadBusyRef.current = true
     setBusy(true)
     setErrorDetail(null)
     const lines: string[] = []
@@ -393,6 +396,7 @@ export default function App() {
       setErrorDetail(lines.join("\n"))
     } finally {
       setBusy(false)
+      uploadBusyRef.current = false
     }
   }
 

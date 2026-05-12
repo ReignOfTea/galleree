@@ -77,6 +77,10 @@ export function buildGalleryFilename(
 
   let tagSlugs = fields.tags.map((x) => displayToSlug(x)).filter(Boolean)
   if (tagSlugs.length === 0) tagSlugs = [titleSlug]
+  else {
+    // Stable filename: same tag set must not change order with comma entry order (avoids duplicate uploads).
+    tagSlugs = [...new Set(tagSlugs)].sort((a, b) => a.localeCompare(b, "en"))
+  }
 
   const parts: string[] = [titleSlug, `tags-${tagSlugs.join("--")}`]
 

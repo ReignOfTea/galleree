@@ -7,7 +7,7 @@
  * `{titleSlug}_tags-{tag1}--{tag2}_loc-{CitySlug}-{CC}_dt-{…}_cam-{slug}_evt-{slug}`
  *
  * - **titleSlug**: first segment without a known prefix; hyphens → spaces, words title-cased (e.g. `evening-rush` → "Evening Rush").
- * - **tags**: `tags-` then tags separated by `--`; words inside a tag use single hyphens (`urban--new-york-city` → Urban, New York City).
+ * - **tags**: `tags-` then tags separated by `--`; words inside a tag use single hyphens (`urban--new-york-city` → Urban, New York City). The uploader sorts tag slugs alphabetically so the same tag set always yields one filename.
  * - **loc**: `loc-{citySlug}-{CC}` → "City, CC" (preferred). **`loc-{citySlug},{CC}`** is still parsed for older files (e.g. `loc-Bury,UK`).
  * - **dt**: optional — `dt-YYYYMMDD-HHmmss` (local wall time) **or** date-only `dt-YYYYMMDD` (stored as local midnight; UI omits clock time).
  * - **cam** / **evt**: optional camera or event label slugs.
