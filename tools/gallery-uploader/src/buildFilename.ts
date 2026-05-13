@@ -54,8 +54,8 @@ export type GalleryFilenameInput = {
   title: string
   tags: string[]
   location: string
+  /** Calendar day in local time; filename uses `dt-YYYYMMDD` only (no time-of-day). */
   capturedAt: Date | null
-  dateOnly: boolean
   camera: string
   event: string
 }
@@ -94,14 +94,7 @@ export function buildGalleryFilename(
     const y = d.getFullYear()
     const mo = String(d.getMonth() + 1).padStart(2, "0")
     const day = String(d.getDate()).padStart(2, "0")
-    if (fields.dateOnly) {
-      parts.push(`dt-${y}${mo}${day}`)
-    } else {
-      const hh = String(d.getHours()).padStart(2, "0")
-      const mm = String(d.getMinutes()).padStart(2, "0")
-      const ss = String(d.getSeconds()).padStart(2, "0")
-      parts.push(`dt-${y}${mo}${day}-${hh}${mm}${ss}`)
-    }
+    parts.push(`dt-${y}${mo}${day}`)
   }
 
   const cam = fields.camera.trim()

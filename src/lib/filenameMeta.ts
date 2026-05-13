@@ -9,12 +9,13 @@
  * - **titleSlug**: first segment without a known prefix; hyphens → spaces, words title-cased (e.g. `evening-rush` → "Evening Rush").
  * - **tags**: `tags-` then tags separated by `--`; words inside a tag use single hyphens (`urban--new-york-city` → Urban, New York City). The uploader sorts tag slugs alphabetically so the same tag set always yields one filename.
  * - **loc**: `loc-{citySlug}-{CC}` → "City, CC" (preferred). **`loc-{citySlug},{CC}`** is still parsed for older files (e.g. `loc-Bury,UK`).
- * - **dt**: optional — `dt-YYYYMMDD-HHmmss` (local wall time) **or** date-only `dt-YYYYMMDD` (stored as local midnight; UI omits clock time).
+ * - **dt**: optional — `dt-YYYYMMDD` (local calendar date, stored as local midnight; no time-of-day in the filename).
+ *   **Legacy:** older files may still use `dt-YYYYMMDD-HHmmss` (local wall time); the site still parses those for sort and display.
  * - **cam** / **evt**: optional camera or event label slugs.
- * - **seq-…** (legacy): if still present in old files, the segment is skipped and not shown; sort order uses capture date/time.
+ * - **seq-…** (legacy): if still present in old files, the segment is skipped and not shown; sort order uses capture date when present.
  *
  * Example:
- * `evening-rush_tags-urban--night_loc-Bury-UK_dt-20240510-183045_cam-fuji-x100v.jpg`
+ * `evening-rush_tags-urban--night_loc-Bury-UK_dt-20240510_cam-fuji-x100v.jpg`
  *
  * **Legacy** — any filename that does not match structured detection; underscore segments become tags,
  * optional `loc-…`, numeric segments skipped (existing behaviour).
@@ -81,7 +82,7 @@ function isStructuredStem(segments: string[]): boolean {
   return segments.some((s) => s.toLowerCase().startsWith('tags-'))
 }
 
-/** `dt-YYYYMMDD-HHmmss` or `dt-YYYYMMDD` (local midnight). */
+/** `dt-YYYYMMDD` (date-only) or legacy `dt-YYYYMMDD-HHmmss`. */
 function parseDtPayload(payload: string): {
   capturedAt: number
   dateOnly: boolean
@@ -121,9 +122,9 @@ export type FilenameMeta = {
   locationDisplay: string | null
   /** From structured title slug */
   displayTitle: string | null
-  /** Local-wall capture instant as epoch ms when `dt-…` present */
+  /** Local midnight of capture calendar day, or legacy local wall time */
   capturedAt: number | null
-  /** True when `dt-…` was date-only (`dt-YYYYMMDD`); UI formats without time-of-day */
+  /** True when `dt-…` was date-only (`dt-YYYYMMDD`); UI formats without time-of-day. False for legacy `…-HHmmss`. */
   capturedAtIsDateOnly: boolean
   cameraLabel: string | null
   eventLabel: string | null

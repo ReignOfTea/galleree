@@ -21,3 +21,4 @@ url = "2"
 base64 = { version = "0.22", features = ["std"] }
 chrono = "0.4"
 kamadak-exif = "0.6"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "rayon"] }

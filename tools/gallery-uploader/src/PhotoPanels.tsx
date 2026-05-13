@@ -70,19 +70,11 @@ export function PhotoPanels({ rows, updateRow, getDestPreview }: Props) {
                   />
                 </label>
                 <label className="field">
-                  <span>When</span>
+                  <span>Date (optional)</span>
                   <input
-                    type="datetime-local"
-                    value={r.dateTimeLocal}
-                    onChange={(e) => updateRow(r.id, { dateTimeLocal: e.target.value })}
-                  />
-                </label>
-                <label className="field field--inline">
-                  <span>Date only (omit time in filename)</span>
-                  <input
-                    type="checkbox"
-                    checked={r.dateOnly}
-                    onChange={(e) => updateRow(r.id, { dateOnly: e.target.checked })}
+                    type="date"
+                    value={r.captureDate}
+                    onChange={(e) => updateRow(r.id, { captureDate: e.target.value })}
                   />
                 </label>
                 <label className="field">

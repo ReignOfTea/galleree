@@ -24,19 +24,22 @@ type ImageHints = {
   model: string | null
 }
 
-function parseLocalDateTime(iso: string | null): { local: string; date: Date } | null {
+function parseIsoToCaptureDate(iso: string | null): string | null {
   if (!iso) return null
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return null
   const pad = (n: number) => String(n).padStart(2, "0")
-  const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  return { local, date: d }
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 function rowFieldsFromRow(r: UploadRow) {
-  const raw = r.dateTimeLocal.trim()
-  const captured =
-    raw.length >= 16 ? new Date(raw.length === 16 ? `${raw}:00` : raw) : null
+  const raw = r.captureDate.trim()
+  let captured: Date | null = null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, mo, day] = raw.split("-").map(Number)
+    const d = new Date(y, mo - 1, day, 0, 0, 0)
+    captured = Number.isNaN(d.getTime()) ? null : d
+  }
   const tags = r.tags
     .split(",")
     .map((x) => x.trim())
@@ -45,8 +48,7 @@ function rowFieldsFromRow(r: UploadRow) {
     title: r.title,
     tags,
     location: r.location,
-    capturedAt: captured && !Number.isNaN(captured.getTime()) ? captured : null,
-    dateOnly: r.dateOnly,
+    capturedAt: captured,
     camera: r.camera,
     event: r.event,
   }
@@ -65,8 +67,7 @@ function newRowFromPath(path: string): UploadRow {
     title: "",
     tags: "photos",
     location: "",
-    dateTimeLocal: "",
-    dateOnly: false,
+    captureDate: "",
     camera: "",
     event: "",
     extension: normalizeExtensionFromPath(path),
@@ -132,9 +133,9 @@ export default function App() {
       for (const p of filtered) {
         const row = newRowFromPath(p)
         const hints = await invoke<ImageHints>("read_image_hints", { path: p })
-        const parsed = parseLocalDateTime(hints.dateTimeOriginalIso)
+        const parsed = parseIsoToCaptureDate(hints.dateTimeOriginalIso)
         if (parsed) {
-          row.dateTimeLocal = parsed.local
+          row.captureDate = parsed
         }
         const camParts = [hints.make, hints.model].filter(Boolean) as string[]
         if (camParts.length) row.camera = camParts.join(" ")
@@ -265,8 +266,7 @@ export default function App() {
             r.title,
             r.tags,
             r.location,
-            r.dateTimeLocal,
-            r.dateOnly ? "1" : "0",
+            r.captureDate,
             r.camera,
             r.event,
             r.extension,
@@ -420,7 +420,8 @@ export default function App() {
           <h1>Galleree upload</h1>
           <p className="lede">
             Add photos with drag-and-drop or Add files, fill in titles and details, then choose Upload pics. Files go
-            under <code>public/gallery/</code> on your gallery site repository. Git must be installed and on PATH.
+            under <code>public/gallery/</code> on your gallery site repository. Files over GitHub’s per-file limit
+            (~100 MiB) are resized before staging so pushes are accepted. Git must be installed and on PATH.
           </p>
         </div>
       </header>

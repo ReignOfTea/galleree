@@ -3,8 +3,13 @@
 use base64::Engine;
 use chrono::{Local, MappedLocalTime, NaiveDateTime};
 use exif::{In, Reader as ExifReader, Tag};
+use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::{CompressionType, FilterType as PngRowFilter, PngEncoder};
+use image::codecs::webp::WebPEncoder;
+use image::imageops::FilterType;
+use image::{DynamicImage, ExtendedColorType, GenericImageView, ImageEncoder, ImageFormat};
 use serde::{Deserialize, Serialize};
-use std::io::BufReader;
+use std::io::{BufReader, Cursor};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::Manager;
@@ -309,6 +314,165 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
 
 const ALLOWED_EXT: &[&str] = &["jpg", "jpeg", "png", "webp", "avif", "gif"];
 
+/// GitHub rejects new blobs ≥ 100 MiB; stay slightly under so pushes succeed.
+/// See: <https://docs.github.com/repositories/working-with-files/managing-large-files/about-large-files-on-github>
+const GITHUB_BLOB_MAX_BYTES: u64 = 100 * 1024 * 1024 / 2; // half of 100 MiB
+
+/// Largest staged file size we allow without re-encoding, and the target cap after shrinking.
+const SAFE_MAX_STAGED_BYTES: u64 = GITHUB_BLOB_MAX_BYTES - 256 * 1024;
+
+const LARGE_FILE_BYTES: u64 = SAFE_MAX_STAGED_BYTES;
+
+const TARGET_STAGED_BYTES: u64 = SAFE_MAX_STAGED_BYTES;
+
+const MIN_LONG_EDGE: u32 = 960;
+
+fn resize_to_max_side(img: &DynamicImage, max_side: u32) -> DynamicImage {
+    let (w, h) = img.dimensions();
+    let m = w.max(h);
+    if m <= max_side {
+        return img.clone();
+    }
+    let scale = max_side as f64 / f64::from(m);
+    let nw = ((f64::from(w) * scale).round() as u32).max(1);
+    let nh = ((f64::from(h) * scale).round() as u32).max(1);
+    img.resize(nw, nh, FilterType::Lanczos3)
+}
+
+fn encode_jpeg(img: &DynamicImage, quality: u8) -> Result<Vec<u8>, String> {
+    let rgb = img.to_rgb8();
+    let mut buf = Vec::new();
+    let enc = JpegEncoder::new_with_quality(&mut buf, quality);
+    enc.write_image(
+        rgb.as_raw(),
+        rgb.width(),
+        rgb.height(),
+        ExtendedColorType::Rgb8,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(buf)
+}
+
+fn encode_png(img: &DynamicImage) -> Result<Vec<u8>, String> {
+    let rgba = img.to_rgba8();
+    let mut buf = Vec::new();
+    let enc = PngEncoder::new_with_quality(&mut buf, CompressionType::Best, PngRowFilter::Adaptive);
+    enc.write_image(
+        rgba.as_raw(),
+        rgba.width(),
+        rgba.height(),
+        ExtendedColorType::Rgba8,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(buf)
+}
+
+fn encode_webp_lossless(img: &DynamicImage) -> Result<Vec<u8>, String> {
+    let rgba = img.to_rgba8();
+    let mut buf = Vec::new();
+    let enc = WebPEncoder::new_lossless(&mut buf);
+    enc.encode(
+        rgba.as_raw(),
+        rgba.width(),
+        rgba.height(),
+        ExtendedColorType::Rgba8,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(buf)
+}
+
+fn encode_gif(img: &DynamicImage) -> Result<Vec<u8>, String> {
+    let mut buf = Vec::new();
+    {
+        let mut c = Cursor::new(&mut buf);
+        img.write_to(&mut c, ImageFormat::Gif)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(buf)
+}
+
+/// Copies files that are already under GitHub’s limit as-is; re-encodes and scales down only when
+/// the source would exceed that limit.
+fn copy_or_shrink_for_git(src: &Path, dest: &Path, dest_filename: &str) -> Result<(), String> {
+    let meta = std::fs::metadata(src).map_err(|e| format!("{dest_filename}: {e}"))?;
+    if meta.len() <= LARGE_FILE_BYTES {
+        std::fs::copy(src, dest).map_err(|e| format!("copy {dest_filename}: {e}"))?;
+        return Ok(());
+    }
+
+    let img = image::open(src).map_err(|e| {
+        format!(
+            "{} is {:.1} MiB; could not decode it to shrink ({e}). \
+             For AVIF, export as JPEG or PNG first, or use a smaller source file.",
+            dest_filename,
+            meta.len() as f64 / (1024.0 * 1024.0)
+        )
+    })?;
+
+    let ext = Path::new(dest_filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let mut max_side = 4096u32;
+    let mut quality: u8 = 88;
+    let mut best: Option<Vec<u8>> = None;
+
+    for _ in 0..48 {
+        let resized = resize_to_max_side(&img, max_side);
+        let buf: Vec<u8> = match ext.as_str() {
+            "jpg" | "jpeg" => encode_jpeg(&resized, quality)?,
+            "png" => encode_png(&resized)?,
+            "webp" => encode_webp_lossless(&resized)?,
+            "gif" => encode_gif(&resized)?,
+            "avif" => {
+                return Err(format!(
+                    "{dest_filename}: AVIF over GitHub’s 100 MiB blob limit is not auto-shrunk here; export as JPEG or PNG and try again."
+                ));
+            }
+            _ => {
+                return Err(format!(
+                    "{dest_filename}: unsupported extension for shrinking"
+                ));
+            }
+        };
+
+        if (buf.len() as u64) <= TARGET_STAGED_BYTES {
+            std::fs::write(dest, buf).map_err(|e| format!("write {dest_filename}: {e}"))?;
+            return Ok(());
+        }
+        match &mut best {
+            Some(b) if b.len() <= buf.len() => {}
+            _ => best = Some(buf),
+        }
+
+        match ext.as_str() {
+            "jpg" | "jpeg" => {
+                if quality > 62 {
+                    quality = quality.saturating_sub(6);
+                } else {
+                    max_side = (max_side * 4 / 5).max(MIN_LONG_EDGE);
+                    quality = 82;
+                }
+            }
+            _ => {
+                max_side = (max_side * 4 / 5).max(MIN_LONG_EDGE);
+            }
+        }
+    }
+
+    let buf = best.ok_or_else(|| format!("{dest_filename}: could not produce a preview"))?;
+    if (buf.len() as u64) > TARGET_STAGED_BYTES {
+        return Err(format!(
+            "{dest_filename}: still {:.1} MiB after shrinking (GitHub allows just under 100 MiB per file); try a smaller source or a more compressible format.",
+            buf.len() as f64 / (1024.0 * 1024.0)
+        ));
+    }
+    std::fs::write(dest, buf).map_err(|e| format!("write {dest_filename}: {e}"))?;
+    Ok(())
+}
+
 fn validate_dest_filename(name: &str) -> Result<(), String> {
     if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
         return Err("invalid destination filename".into());
@@ -341,7 +505,7 @@ fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<V
             return Err(format!("source not found: {}", it.source_path));
         }
         let dest = gallery_dir.join(&it.dest_filename);
-        std::fs::copy(&src, &dest).map_err(|e| format!("copy {}: {e}", it.dest_filename))?;
+        copy_or_shrink_for_git(&src, &dest, &it.dest_filename)?;
         copied.push(it.dest_filename);
     }
     Ok(copied)

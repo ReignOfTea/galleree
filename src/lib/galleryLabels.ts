@@ -36,7 +36,7 @@ export function formatCaptureDate(
   return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-/** Accessible description: title, location, optional capture date/time */
+/** Accessible description: title, location, optional capture date */
 export function galleryImageDescription(e: GalleryLabelFields): string {
   const title = e.displayTitle ?? e.file
   const parts = [title]
