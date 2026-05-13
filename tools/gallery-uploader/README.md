@@ -35,7 +35,7 @@ Generate the token, then **copy it immediately** (GitHub will not show it again)
 
 Workflow: `.github/workflows/gallery-uploader-release.yml`.
 
-- **Every push to `main` or `master`** that changes `tools/gallery-uploader/**` builds all platforms and publishes a **prerelease** on GitHub (tag like `gallery-uploader-v0.1.0-r42`, using `version` from `src-tauri/tauri.conf.json` plus the workflow run number).
+- **Every push to `main` or `master`** that changes `tools/gallery-uploader/**` builds the Windows app and publishes a **prerelease** on GitHub (tag like `gallery-uploader-v0.1.0-r42`, using `version` from `src-tauri/tauri.conf.json` plus the workflow run number).
 - **Stable release:** bump `version` in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, commit, then  
   `git tag gallery-uploader-v0.2.0 && git push origin gallery-uploader-v0.2.0`  
   (tag suffix should match the version you intend to ship.)

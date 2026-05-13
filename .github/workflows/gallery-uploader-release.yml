@@ -58,15 +58,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            label: macos-aarch64
-            args: '--target aarch64-apple-darwin'
-          - platform: macos-latest
-            label: macos-x86_64
-            args: '--target x86_64-apple-darwin'
-          - platform: ubuntu-22.04
-            label: linux-x64
-            args: ''
           - platform: windows-latest
             label: windows-x64
             args: ''
@@ -76,12 +67,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -89,8 +74,6 @@ jobs:
           cache-dependency-path: tools/gallery-uploader/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -108,7 +91,7 @@ jobs:
           projectPath: tools/gallery-uploader
           tagName: ${{ needs.prepare.outputs.tag_name }}
           releaseName: ${{ needs.prepare.outputs.release_name }}
-          releaseBody: 'Installers for Windows, macOS (Apple Silicon and Intel), and Linux.'
+          releaseBody: 'Windows installer (NSIS).'
           generateReleaseNotes: true
           releaseDraft: false
           prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}

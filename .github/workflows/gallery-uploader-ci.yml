@@ -1,6 +1,6 @@
 # Build the Galleree Upload Tauri app (workflow artifacts only). No GitHub Release.
 # Pushes to main/master are released by gallery-uploader-release.yml instead.
-# Artifacts: Actions run → "galleree-upload-<linux|windows|macos>".
+# Artifacts: Actions run → "galleree-upload-windows".
 
 name: Gallery uploader (Tauri)
 
@@ -31,12 +31,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
-            label: linux
           - os: windows-latest
             label: windows
-          - os: macos-latest
-            label: macos
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -44,12 +40,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Linux dependencies
-        if: matrix.label == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - uses: actions/setup-node@v4
         with:
