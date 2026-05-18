@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { GalleryEntry } from '../hooks/useGalleryManifest'
 import { useImageExif } from '../hooks/useImageExif'
 import { galleryImageDescription, formatCaptureDate } from '../lib/galleryLabels'
+import { mergeGalleryLensIntoExifCameraModel } from '../lib/exifDisplay'
 import { shareGalleryPhoto } from '../lib/shareGalleryPhoto'
+import type { EquipmentOpenContext } from './EquipmentCaptionLink'
+import { LightboxEquipmentValue } from './LightboxEquipmentValue'
 
 export type LightboxPhoto = GalleryEntry
 
@@ -13,6 +16,7 @@ type Props = {
   onClose: () => void
   /** Prev/next image in gallery order when multiple items (`items.length > 1`). */
   onAdjacent?: (direction: -1 | 1) => void
+  onEquipmentOpen?: (ctx: EquipmentOpenContext) => void
 }
 
 type FsDocument = Document & {
@@ -112,6 +116,7 @@ export function PhotoLightbox({
   siteTitle,
   onClose,
   onAdjacent,
+  onEquipmentOpen,
 }: Props) {
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -123,6 +128,11 @@ export function PhotoLightbox({
   const [shareNotice, setShareNotice] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const exifState = useImageExif(detailsOpen ? photo.url : null)
+
+  const exifRows = useMemo(() => {
+    if (exifState.status !== 'ok') return []
+    return mergeGalleryLensIntoExifCameraModel(exifState.rows, photo.lensLabel)
+  }, [exifState, photo.lensLabel])
 
   const resetView = useCallback(() => {
     setView({ scale: MIN_SCALE, pan: { x: 0, y: 0 } })
@@ -505,18 +515,9 @@ export function PhotoLightbox({
               <span aria-hidden="true">×</span>
             </button>
             <div className="lightbox-title-stack">
-              {photo.displayTitle ? (
-                <>
-                  <p id="lightbox-title" className="lightbox-title lightbox-title-primary">
-                    {photo.displayTitle}
-                  </p>
-                  <p className="lightbox-title lightbox-title-filename">{photo.file}</p>
-                </>
-              ) : (
-                <p id="lightbox-title" className="lightbox-title">
-                  {photo.file}
-                </p>
-              )}
+              <p id="lightbox-title" className="lightbox-title lightbox-title-primary">
+                {photo.displayTitle ?? photo.file}
+              </p>
               {metaParts.length > 0 ? (
                 <p className="lightbox-title-meta" aria-label="Photo details">
                   {metaParts.join(' · ')}
@@ -626,20 +627,25 @@ export function PhotoLightbox({
           </div>
         </header>
 
-        {photo.tags.length > 0 ? (
-          <div className="lightbox-tags-strip" aria-label="Tags for this photo">
-            <span className="lightbox-tags-strip-label">Tags</span>
-            <ul className="lightbox-tags-strip-list">
-              {[...photo.tags]
-                .sort((a, b) => a.localeCompare(b))
-                .map((tag) => (
-                  <li key={tag}>
-                    <span className="lightbox-tag-pill">{tag}</span>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        ) : null}
+        {(() => {
+          const stripTags = photo.tags.filter(
+            (t) => t !== photo.locationDisplay,
+          )
+          return stripTags.length > 0 ? (
+            <div className="lightbox-tags-strip" aria-label="Tags for this photo">
+              <span className="lightbox-tags-strip-label">Tags</span>
+              <ul className="lightbox-tags-strip-list">
+                {[...stripTags]
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((tag) => (
+                    <li key={tag}>
+                      <span className="lightbox-tag-pill">{tag}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null
+        })()}
 
         <div ref={stageRef} className="lightbox-stage">
           <div
@@ -735,39 +741,60 @@ export function PhotoLightbox({
                 </button>
               </div>
               <div className="lightbox-details-body">
-                <section className="lightbox-details-section" aria-labelledby="lightbox-details-filename">
-                  <h3 id="lightbox-details-filename" className="lightbox-details-section-title">
-                    From filename
+                <section className="lightbox-details-section" aria-labelledby="lightbox-details-meta">
+                  <h3 id="lightbox-details-meta" className="lightbox-details-section-title">
+                    Gallery metadata
                   </h3>
                   <dl className="lightbox-details-dl">
                     <dt>Title</dt>
                     <dd>{photo.displayTitle ?? '—'}</dd>
+                    <dt>Description</dt>
+                    <dd>{photo.description ?? '—'}</dd>
                     <dt>Tags</dt>
                     <dd>
-                      {photo.tags.length > 0 ? (
-                        <ul className="lightbox-details-taglist">
-                          {[...photo.tags]
-                            .sort((a, b) => a.localeCompare(b))
-                            .map((t) => (
-                              <li key={t}>{t}</li>
-                            ))}
-                        </ul>
-                      ) : (
-                        '—'
-                      )}
+                      {(() => {
+                        const detailTags = photo.tags.filter(
+                          (t) => t !== photo.locationDisplay,
+                        )
+                        return detailTags.length > 0 ? (
+                          <ul className="lightbox-details-taglist">
+                            {[...detailTags]
+                              .sort((a, b) => a.localeCompare(b))
+                              .map((t) => (
+                                <li key={t}>{t}</li>
+                              ))}
+                          </ul>
+                        ) : (
+                          '—'
+                        )
+                      })()}
                     </dd>
                     <dt>Location</dt>
                     <dd>{photo.locationDisplay ?? '—'}</dd>
                     <dt>{photo.capturedAtIsDateOnly ? 'Date' : 'Date & time'}</dt>
                     <dd>{filenameDateLong ?? '—'}</dd>
-                    <dt>Camera (filename)</dt>
-                    <dd>{photo.cameraLabel ?? '—'}</dd>
-                    <dt>Event (filename)</dt>
+                    <dt>Camera</dt>
+                    <dd>
+                      <LightboxEquipmentValue
+                        cameraRef={photo.cameraRef}
+                        lensRef={photo.lensRef}
+                        onOpen={onEquipmentOpen}
+                      />
+                    </dd>
+                    <dt>Collection</dt>
                     <dd>{photo.eventLabel ?? '—'}</dd>
-                    <dt>Convention</dt>
-                    <dd>{photo.parseMode === 'structured' ? 'Structured filename' : 'Legacy filename'}</dd>
-                    <dt>File name</dt>
-                    <dd className="lightbox-details-mono">{photo.file}</dd>
+                    {photo.alt ? (
+                      <>
+                        <dt>Alt text</dt>
+                        <dd>{photo.alt}</dd>
+                      </>
+                    ) : null}
+                    {photo.copyright ? (
+                      <>
+                        <dt>Copyright</dt>
+                        <dd>{photo.copyright}</dd>
+                      </>
+                    ) : null}
                   </dl>
                 </section>
 
@@ -783,15 +810,15 @@ export function PhotoLightbox({
                       {exifState.message}
                     </p>
                   ) : null}
-                  {exifState.status === 'ok' && exifState.rows.length === 0 ? (
+                  {exifState.status === 'ok' && exifRows.length === 0 ? (
                     <p className="lightbox-details-muted">
                       No EXIF / IPTC / XMP blocks found in this file (common for exported or web-saved
                       JPEGs).
                     </p>
                   ) : null}
-                  {exifState.status === 'ok' && exifState.rows.length > 0 ? (
+                  {exifState.status === 'ok' && exifRows.length > 0 ? (
                     <dl className="lightbox-details-dl">
-                      {exifState.rows.map((row, i) => (
+                      {exifRows.map((row, i) => (
                         <div key={`${row.label}-${i}`} className="lightbox-details-pair">
                           <dt>{row.label}</dt>
                           <dd>{row.value}</dd>

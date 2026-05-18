@@ -25,7 +25,13 @@ function titleSortKey(entry: GalleryEntry): string {
   return stem.toLowerCase()
 }
 
+function sortOrderKey(entry: GalleryEntry): number {
+  return entry.sortOrder ?? Number.POSITIVE_INFINITY
+}
+
 function tieBreak(a: GalleryEntry, b: GalleryEntry): number {
+  const so = sortOrderKey(a) - sortOrderKey(b)
+  if (so !== 0) return so
   return a.file.localeCompare(b.file)
 }
 

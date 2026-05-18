@@ -40,6 +40,39 @@ pub struct ImageHints {
 pub struct StageItem {
     pub source_path: String,
     pub dest_filename: String,
+    pub meta_json: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryCollection {
+    pub slug: String,
+    pub title: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryEquipment {
+    pub slug: String,
+    pub name: String,
+    pub make: Option<String>,
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GalleryRegistries {
+    pub collections: Vec<RegistryCollection>,
+    pub cameras: Vec<RegistryEquipment>,
+    pub lenses: Vec<RegistryEquipment>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GalleryImageRef {
+    pub id: String,
+    pub title: String,
 }
 
 fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -111,6 +144,134 @@ fn https_url_with_pat(repo_url: &str, pat: &str) -> Result<String, String> {
     u.set_password(Some(pat))
         .map_err(|_| "could not set URL password (check PAT characters)".to_string())?;
     Ok(u.to_string())
+}
+
+fn gallery_root_from_config(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let cfg = load_config(app.clone())?.ok_or("not configured")?;
+    let gallery = PathBuf::from(&cfg.workdir).join("public").join("gallery");
+    if !gallery.is_dir() {
+        return Err("public/gallery missing — run “Prepare repository” first.".into());
+    }
+    Ok(gallery)
+}
+
+fn is_gallery_image_id(stem: &str) -> bool {
+    stem.len() == 32 && stem.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn is_safe_registry_asset_path(relative: &str) -> bool {
+    if relative.contains("..") || relative.contains('\\') {
+        return false;
+    }
+    let lower = relative.to_lowercase();
+    (lower.starts_with("meta/cameras/") || lower.starts_with("meta/lenses/"))
+        && (lower.ends_with(".png")
+            || lower.ends_with(".jpg")
+            || lower.ends_with(".jpeg")
+            || lower.ends_with(".webp"))
+}
+
+fn is_safe_registry_relative_path(relative: &str) -> bool {
+    if relative.contains('\\') || relative.contains("..") {
+        return false;
+    }
+    let allowed = relative.starts_with("meta/collections/")
+        || relative.starts_with("meta/cameras/")
+        || relative.starts_with("meta/lenses/");
+    allowed && relative.ends_with(".json")
+}
+
+fn read_registry_collections(dir: &Path) -> Result<Vec<RegistryCollection>, String> {
+    let mut out = Vec::new();
+    if !dir.is_dir() {
+        return Ok(out);
+    }
+    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let v: serde_json::Value =
+            serde_json::from_str(&raw).map_err(|e| format!("invalid {}: {e}", path.display()))?;
+        let slug = v
+            .get("slug")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty());
+        let title = v
+            .get("title")
+            .and_then(|x| x.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let (Some(slug), Some(title)) = (slug, title) else {
+            continue;
+        };
+        let description = v
+            .get("description")
+            .and_then(|x| x.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        out.push(RegistryCollection {
+            slug,
+            title: title.to_string(),
+            description,
+        });
+    }
+    out.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    Ok(out)
+}
+
+fn read_registry_equipment(dir: &Path) -> Result<Vec<RegistryEquipment>, String> {
+    let mut out = Vec::new();
+    if !dir.is_dir() {
+        return Ok(out);
+    }
+    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let v: serde_json::Value =
+            serde_json::from_str(&raw).map_err(|e| format!("invalid {}: {e}", path.display()))?;
+        let slug = v
+            .get("slug")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty());
+        let name = v
+            .get("name")
+            .and_then(|x| x.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let (Some(slug), Some(name)) = (slug, name) else {
+            continue;
+        };
+        let make = v
+            .get("make")
+            .and_then(|x| x.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        let model = v
+            .get("model")
+            .and_then(|x| x.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
+        out.push(RegistryEquipment {
+            slug,
+            name: name.to_string(),
+            make,
+            model,
+        });
+    }
+    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(out)
 }
 
 fn ensure_galleree_layout(workdir: &Path) -> Result<(), String> {
@@ -489,13 +650,111 @@ fn validate_dest_filename(name: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<Vec<String>, String> {
-    let cfg = load_config(app)?.ok_or("not configured")?;
-    let workdir = PathBuf::from(&cfg.workdir);
-    let gallery_dir = workdir.join("public").join("gallery");
-    if !gallery_dir.is_dir() {
-        return Err("public/gallery missing — run “Prepare repository” first.".into());
+fn list_gallery_registries(app: tauri::AppHandle) -> Result<GalleryRegistries, String> {
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let meta = gallery_dir.join("meta");
+    Ok(GalleryRegistries {
+        collections: read_registry_collections(&meta.join("collections"))?,
+        cameras: read_registry_equipment(&meta.join("cameras"))?,
+        lenses: read_registry_equipment(&meta.join("lenses"))?,
+    })
+}
+
+#[tauri::command]
+fn list_gallery_images(app: tauri::AppHandle) -> Result<Vec<GalleryImageRef>, String> {
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let meta_dir = gallery_dir.join("meta");
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(&gallery_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !is_gallery_image_id(stem) {
+            continue;
+        }
+        let id = stem.to_lowercase();
+        let mut title = id.clone();
+        let meta_path = meta_dir.join(format!("{id}.json"));
+        if meta_path.is_file() {
+            if let Ok(raw) = std::fs::read_to_string(&meta_path) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+                    if let Some(t) = v.get("title").and_then(|x| x.as_str()) {
+                        let t = t.trim();
+                        if !t.is_empty() {
+                            title = t.to_string();
+                        }
+                    }
+                }
+            }
+        }
+        out.push(GalleryImageRef { id, title });
     }
+    out.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    Ok(out)
+}
+
+#[tauri::command]
+fn write_registry_asset(
+    app: tauri::AppHandle,
+    relative_path: String,
+    source_path: String,
+) -> Result<(), String> {
+    let relative = relative_path.trim().replace('\\', "/");
+    if !is_safe_registry_asset_path(&relative) {
+        return Err(
+            "asset path must be meta/cameras/{slug}.png or meta/lenses/{slug}.png".into(),
+        );
+    }
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let dest = gallery_dir.join(&relative);
+    let src = PathBuf::from(&source_path);
+    if !src.is_file() {
+        return Err(format!("image file not found: {}", source_path));
+    }
+    let img = image::open(&src).map_err(|e| format!("could not open image: {e}"))?;
+    let resized = resize_to_max_side(&img, 1600);
+    let buf = encode_png(&resized)?;
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&dest, buf).map_err(|e| format!("write {relative}: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn write_gallery_registry_file(
+    app: tauri::AppHandle,
+    relative_path: String,
+    json: String,
+) -> Result<(), String> {
+    let relative = relative_path.trim().replace('\\', "/");
+    if !is_safe_registry_relative_path(&relative) {
+        return Err("registry path must be meta/collections|cameras|lenses/{slug}.json".into());
+    }
+    if json.len() > 64 * 1024 {
+        return Err("registry JSON is too large (max 64 KiB)".into());
+    }
+    if serde_json::from_str::<serde_json::Value>(&json).is_err() {
+        return Err("registry JSON is invalid".into());
+    }
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let dest = gallery_dir.join(&relative);
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&dest, json.as_bytes())
+        .map_err(|e| format!("write {relative}: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<Vec<String>, String> {
+    let gallery_dir = gallery_root_from_config(&app)?;
 
     let mut copied = Vec::new();
     for it in items {
@@ -506,6 +765,35 @@ fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<V
         }
         let dest = gallery_dir.join(&it.dest_filename);
         copy_or_shrink_for_git(&src, &dest, &it.dest_filename)?;
+
+        if let Some(json) = it.meta_json.as_ref() {
+            if json.len() > 64 * 1024 {
+                return Err(format!(
+                    "metadata for {} is too large (max 64 KiB)",
+                    it.dest_filename
+                ));
+            }
+            let stem = Path::new(&it.dest_filename)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .ok_or_else(|| format!("invalid destination name: {}", it.dest_filename))?;
+            if stem.len() != 32
+                || !stem
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || matches!(c, 'a'..='f' | 'A'..='F'))
+            {
+                return Err(format!(
+                    "invalid gallery id in {} (expected 32 hex characters)",
+                    it.dest_filename
+                ));
+            }
+            let meta_dir = gallery_dir.join("meta");
+            std::fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
+            let meta_path = meta_dir.join(format!("{stem}.json"));
+            std::fs::write(&meta_path, json.as_bytes())
+                .map_err(|e| format!("write meta/{stem}.json: {e}"))?;
+        }
+
         copied.push(it.dest_filename);
     }
     Ok(copied)
@@ -529,7 +817,7 @@ fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String,
         .args(["pull", "--rebase", "origin", branch]);
     output_status(&mut pull)?;
 
-    // Gallery binaries are gitignored in galleree (see .gitignore); normal `git add` skips them.
+    // Gallery images, meta, and thumbs are gitignored (see .gitignore); normal `git add` skips them.
     let mut add = git_command(&workdir);
     add.args(["add", "-f", "--", "public/gallery"]);
     output_status(&mut add)?;
@@ -582,6 +870,10 @@ pub fn run() {
             read_image_hints,
             gallery_dest_exists,
             ensure_repo_ready,
+            list_gallery_registries,
+            list_gallery_images,
+            write_gallery_registry_file,
+            write_registry_asset,
             stage_gallery_files,
             git_commit_and_push,
         ])

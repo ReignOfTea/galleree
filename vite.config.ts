@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { galleryCacheHeadersPlugin } from './vite/galleryCacheHeadersPlugin'
 import { galleryManifestPlugin } from './vite/galleryManifestPlugin'
 import { gallerySharePagesPlugin } from './vite/gallerySharePagesPlugin'
 import { siteHtmlMetaPlugin } from './vite/siteHtmlMetaPlugin'
@@ -17,6 +18,7 @@ const base = viteBase()
 export default defineConfig({
   plugins: [
     react(),
+    galleryCacheHeadersPlugin(),
     galleryManifestPlugin(),
     gallerySharePagesPlugin({ base }),
     siteHtmlMetaPlugin({ base }),

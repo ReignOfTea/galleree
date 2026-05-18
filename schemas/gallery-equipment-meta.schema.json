@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://galleree.dev/schemas/gallery-equipment-meta.schema.json",
+  "title": "Galleree equipment metadata",
+  "type": "object",
+  "required": ["version", "slug", "name"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "make": { "type": ["string", "null"], "maxLength": 80 },
+    "model": { "type": ["string", "null"], "maxLength": 120 },
+    "description": { "type": ["string", "null"], "maxLength": 2000 },
+    "image": { "type": ["string", "null"], "maxLength": 240 },
+    "lensSlug": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    }
+  }
+}

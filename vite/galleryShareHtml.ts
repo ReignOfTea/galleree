@@ -44,8 +44,10 @@ export function absolutePublicUrl(
 
 function metaDesc(site: Record<string, unknown>, title: string, max: number): string {
   const tagline = typeof site.tagline === 'string' ? site.tagline.trim() : ''
+  const aboutRaw = typeof site.about === 'string' ? site.about.trim() : ''
+  const aboutLead = aboutRaw.split(/\n\n+/)[0]?.trim() ?? ''
   const bio = typeof site.bio === 'string' ? site.bio.trim() : ''
-  let description = tagline || bio || `${title} — photography`
+  let description = tagline || aboutLead || bio || `${title} — photography`
   if (description.length > max) {
     description = `${description.slice(0, max - 1)}…`
   }

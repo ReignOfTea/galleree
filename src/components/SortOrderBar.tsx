@@ -11,6 +11,8 @@ type Props = {
   onChange: (value: GallerySortOrder) => void
   /** `toolbar`: compact row for the gallery controls bar. Default `section`. */
   variant?: 'section' | 'toolbar'
+  /** Toolbar only: hide visible label, keep for screen readers. */
+  hideLabel?: boolean
 }
 
 export function SortOrderBar({
@@ -20,6 +22,7 @@ export function SortOrderBar({
   value,
   onChange,
   variant = 'section',
+  hideLabel = false,
 }: Props) {
   const headingId = `${idPrefix}-heading`
 
@@ -47,7 +50,12 @@ export function SortOrderBar({
   if (variant === 'toolbar') {
     return (
       <div className="sort-order-toolbar">
-        <span id={headingId} className="sort-order-toolbar-label">
+        <span
+          id={headingId}
+          className={
+            hideLabel ? 'visually-hidden' : 'sort-order-toolbar-label'
+          }
+        >
           {label}
         </span>
         {nav}

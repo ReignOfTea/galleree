@@ -8,12 +8,19 @@ export type HeaderLayout = 'title' | 'logo' | 'both'
 
 export type SiteConfig = {
   title: string
+  /** Small label above the brand (default: “Photography”). */
+  kicker?: string
   tagline?: string
-  bio?: string
+  /** About copy; paragraphs separated by blank lines. */
+  about?: string
+  /** Shown as a prominent contact link (e.g. bookings). */
+  contactEmail?: string
   /** Label above location filters (default in UI: “Locations”) */
   locationsLabel?: string
   /** Label above tag filters (default in UI: “Tags”). Legacy `collectionsLabel` maps here if unset. */
   tagsLabel?: string
+  /** Label for collection filters (default in UI: “Collections”). */
+  eventsLabel?: string
   social?: SocialLink[]
   /**
    * Logo image: filename under `public/` (e.g. `logo.svg`) or absolute `https://…` URL.
@@ -37,11 +44,41 @@ export type SiteConfig = {
   siteUrl?: string
   /** Open Graph / Twitter image: path under `public/` or absolute `https://…`. Defaults to first gallery image. */
   ogImage?: string
+  /** Shown when the gallery folder has no images yet. */
+  emptyNoImages?: string
+  /** Shown when search returns no matches. */
+  emptyNoSearch?: string
+  /** Shown when location/tag filters return no matches. */
+  emptyNoFilters?: string
 }
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
   title: 'Portfolio',
   tagline: '',
+}
+
+export const DEFAULT_EMPTY_MESSAGES = {
+  noImages:
+    'New work will appear here after each outing. Check back soon, or get in touch if you are looking for something specific.',
+  noSearch:
+    'No photos match your search. Try different words or clear the search box.',
+  noFilters:
+    'No photos match these filters. Try clearing filters or open Collections to browse a series.',
+} as const
+
+export type ResolvedEmptyMessages = {
+  noImages: string
+  noSearch: string
+  noFilters: string
+}
+
+export function resolveEmptyMessages(config: SiteConfig): ResolvedEmptyMessages {
+  return {
+    noImages: config.emptyNoImages?.trim() || DEFAULT_EMPTY_MESSAGES.noImages,
+    noSearch: config.emptyNoSearch?.trim() || DEFAULT_EMPTY_MESSAGES.noSearch,
+    noFilters:
+      config.emptyNoFilters?.trim() || DEFAULT_EMPTY_MESSAGES.noFilters,
+  }
 }
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -65,9 +102,19 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
       ? raw.title.trim()
       : DEFAULT_SITE_CONFIG.title
 
+  const kicker =
+    typeof raw.kicker === 'string' && raw.kicker.trim()
+      ? raw.kicker.trim()
+      : undefined
+
   const tagline =
     typeof raw.tagline === 'string' ? raw.tagline.trim() : undefined
-  const bio = typeof raw.bio === 'string' ? raw.bio.trim() : undefined
+  const about = typeof raw.about === 'string' ? raw.about.trim() : undefined
+
+  const contactEmail =
+    typeof raw.contactEmail === 'string' && raw.contactEmail.trim()
+      ? raw.contactEmail.trim()
+      : undefined
   const legacyCollections =
     typeof raw.collectionsLabel === 'string' && raw.collectionsLabel.trim()
       ? raw.collectionsLabel.trim()
@@ -81,6 +128,11 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
   const locationsLabel =
     typeof raw.locationsLabel === 'string' && raw.locationsLabel.trim()
       ? raw.locationsLabel.trim()
+      : undefined
+
+  const eventsLabel =
+    typeof raw.eventsLabel === 'string' && raw.eventsLabel.trim()
+      ? raw.eventsLabel.trim()
       : undefined
 
   const logo =
@@ -118,6 +170,19 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
       ? raw.ogImage.trim()
       : undefined
 
+  const emptyNoImages =
+    typeof raw.emptyNoImages === 'string' && raw.emptyNoImages.trim()
+      ? raw.emptyNoImages.trim()
+      : undefined
+  const emptyNoSearch =
+    typeof raw.emptyNoSearch === 'string' && raw.emptyNoSearch.trim()
+      ? raw.emptyNoSearch.trim()
+      : undefined
+  const emptyNoFilters =
+    typeof raw.emptyNoFilters === 'string' && raw.emptyNoFilters.trim()
+      ? raw.emptyNoFilters.trim()
+      : undefined
+
   const social: SocialLink[] = []
   if (Array.isArray(raw.social)) {
     for (const item of raw.social) {
@@ -130,10 +195,13 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
 
   return {
     title,
+    ...(kicker ? { kicker } : {}),
     ...(tagline ? { tagline } : {}),
-    ...(bio ? { bio } : {}),
+    ...(about ? { about } : {}),
+    ...(contactEmail ? { contactEmail } : {}),
     ...(tagsLabel ? { tagsLabel } : {}),
     ...(locationsLabel ? { locationsLabel } : {}),
+    ...(eventsLabel ? { eventsLabel } : {}),
     ...(social.length ? { social } : {}),
     ...(logo ? { logo } : {}),
     ...(logoAlt ? { logoAlt } : {}),
@@ -143,6 +211,9 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
     ...(lang ? { lang } : {}),
     ...(siteUrl ? { siteUrl } : {}),
     ...(ogImage ? { ogImage } : {}),
+    ...(emptyNoImages ? { emptyNoImages } : {}),
+    ...(emptyNoSearch ? { emptyNoSearch } : {}),
+    ...(emptyNoFilters ? { emptyNoFilters } : {}),
   }
 }
 
@@ -176,6 +247,12 @@ export function resolveHeaderPresentation(config: SiteConfig): {
     logoSrc,
     logoAlt: config.logoAlt?.trim() || config.title,
   }
+}
+
+/** First paragraph of `about` (for meta description and previews). */
+export function aboutLeadText(about?: string): string | undefined {
+  const lead = about?.trim().split(/\n\n+/)[0]?.trim()
+  return lead || undefined
 }
 
 export function siteJsonHref(): string {

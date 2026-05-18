@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import {
-  DEFAULT_SITE_CONFIG,
+  aboutLeadText,
   normalizeSiteConfig,
   siteJsonHref,
   type SiteConfig,
 } from '../lib/siteConfig'
+import { BOOTSTRAP_SITE_CONFIG } from '../lib/siteBootstrap'
 
 export function useSiteConfig(): SiteConfig {
-  const [config, setConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG)
+  const [config, setConfig] = useState<SiteConfig>(BOOTSTRAP_SITE_CONFIG)
 
   useEffect(() => {
     let cancelled = false
@@ -19,7 +20,7 @@ export function useSiteConfig(): SiteConfig {
         const raw: unknown = await res.json()
         if (!cancelled) setConfig(normalizeSiteConfig(raw))
       } catch {
-        /* keep defaults */
+        /* keep bootstrap */
       }
     })()
 
@@ -43,7 +44,9 @@ export function useSiteConfig(): SiteConfig {
       meta.setAttribute('name', 'description')
       document.head.appendChild(meta)
     }
-    const description = [config.tagline, config.bio].filter(Boolean).join(' · ')
+    const description = [config.tagline, aboutLeadText(config.about)]
+      .filter(Boolean)
+      .join(' · ')
     meta.setAttribute('content', description || config.title)
   }, [config])
 

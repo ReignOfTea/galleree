@@ -1,13 +1,34 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core"
-import { getCurrentWebview } from "@tauri-apps/api/webview"
-import { open } from "@tauri-apps/plugin-dialog"
+import {
+  appConvertFileSrc,
+  appInvoke,
+  appOpenFiles,
+  isTauri,
+  listenDragDropEvents,
+  TAURI_REQUIRED_MESSAGE,
+} from "./tauriBridge"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  buildGalleryFilename,
-  isAllowedImagePath,
-  normalizeExtensionFromPath,
-} from "./buildFilename"
+  galleryMetaFromUploadFields,
+  randomGalleryImageFilename,
+  serializeGalleryMeta,
+} from "@galleree/gallery-meta"
+import { isAllowedImagePath, normalizeExtensionFromPath } from "./imageExtensions"
+import { matchEquipmentSlug } from "./matchRegistry"
+import { RegistryCreateModal } from "./components/RegistryCreateModal"
 import { PhotoPanels } from "./PhotoPanels"
+import { fetchGalleryImages } from "./registryService"
+import {
+  resolveCameraValue,
+  resolveCollectionSlug,
+  resolveLensValue,
+} from "./registryUpload"
+import type {
+  CoverCandidate,
+  GalleryImageRef,
+  GalleryRegistries,
+  RegistryModalRequest,
+} from "./registryTypes"
+import { SELECT_CUSTOM, SELECT_NONE } from "./registryTypes"
 import type { UploadRow } from "./types"
 import "./App.css"
 
@@ -44,33 +65,57 @@ function rowFieldsFromRow(r: UploadRow) {
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean)
+  const sortRaw = r.sortOrder.trim()
+  let sortOrder: number | null = null
+  if (sortRaw) {
+    const n = Number(sortRaw)
+    if (Number.isFinite(n)) sortOrder = n
+  }
   return {
     title: r.title,
+    description: r.description,
     tags,
     location: r.location,
     capturedAt: captured,
-    camera: r.camera,
-    event: r.event,
+    camera: resolveCameraValue(r),
+    lens: resolveLensValue(r),
+    collectionSlug: resolveCollectionSlug(r),
+    alt: r.alt,
+    hidden: r.hidden,
+    sortOrder,
+    copyright: r.copyright,
   }
 }
 
-function destPreviewForRow(r: UploadRow): string | null {
+function destPreviewForRow(
+  r: UploadRow,
+  takenNames: ReadonlySet<string>,
+): { id: string; file: string } | null {
   if (!r.title.trim()) return null
-  return buildGalleryFilename(rowFieldsFromRow(r), r.extension)
+  return randomGalleryImageFilename(r.extension, takenNames)
 }
 
 function newRowFromPath(path: string): UploadRow {
   return {
     id: crypto.randomUUID(),
     sourcePath: path,
-    previewSrc: convertFileSrc(path),
+    previewSrc: appConvertFileSrc(path),
     title: "",
+    description: "",
     tags: "photos",
     location: "",
     captureDate: "",
-    camera: "",
-    event: "",
+    cameraSelect: SELECT_NONE,
+    cameraCustom: "",
+    lensSelect: SELECT_NONE,
+    lensCustom: "",
+    collectionSelect: SELECT_NONE,
+    alt: "",
+    hidden: false,
+    sortOrder: "",
+    copyright: "",
     extension: normalizeExtensionFromPath(path),
+    destId: "",
     destFilename: "",
     destExists: false,
   }
@@ -87,6 +132,13 @@ export default function App() {
   const [repoPreparing, setRepoPreparing] = useState(false)
   const [dragOverWindow, setDragOverWindow] = useState(false)
   const [rows, setRows] = useState<UploadRow[]>([])
+  const [registries, setRegistries] = useState<GalleryRegistries>({
+    collections: [],
+    cameras: [],
+    lenses: [],
+  })
+  const [registryModal, setRegistryModal] = useState<RegistryModalRequest | null>(null)
+  const [galleryImages, setGalleryImages] = useState<GalleryImageRef[]>([])
   const rowsRef = useRef(rows)
   rowsRef.current = rows
   const [commitMessage, setCommitMessage] = useState("")
@@ -100,8 +152,59 @@ export default function App() {
     [rows],
   )
 
+  const getDestPreview = useCallback(
+    (r: UploadRow) => {
+      const taken = new Set<string>()
+      for (const row of rows) {
+        if (row.id === r.id) continue
+        if (row.destFilename) taken.add(row.destFilename.toLowerCase())
+      }
+      return destPreviewForRow(r, taken)
+    },
+    [rows],
+  )
+
+  const refreshRegistries = useCallback(async () => {
+    if (!config) return
+    try {
+      const next = await appInvoke<GalleryRegistries>("list_gallery_registries")
+      setRegistries(next)
+    } catch {
+      setRegistries({ collections: [], cameras: [], lenses: [] })
+    }
+  }, [config])
+
+  const loadGalleryImages = useCallback(async () => {
+    if (!config) return
+    try {
+      setGalleryImages(await fetchGalleryImages())
+    } catch {
+      setGalleryImages([])
+    }
+  }, [config])
+
+  const coverCandidates = useMemo((): CoverCandidate[] => {
+    const fromUpload = rows
+      .filter((r) => r.destId && r.title.trim())
+      .map((r) => ({
+        id: r.destId,
+        label: r.title.trim(),
+        source: "upload" as const,
+      }))
+    const fromGallery = galleryImages.map((img) => ({
+      id: img.id,
+      label: img.title?.trim() || img.id.slice(0, 8),
+      source: "gallery" as const,
+    }))
+    return [...fromUpload, ...fromGallery]
+  }, [rows, galleryImages])
+
+  useEffect(() => {
+    if (registryModal?.kind === "collection") void loadGalleryImages()
+  }, [registryModal?.kind, loadGalleryImages])
+
   const load = useCallback(async () => {
-    const c = await invoke<AppConfig | null>("load_config")
+    const c = await appInvoke<AppConfig | null>("load_config")
     if (c) {
       setConfig(c)
       setRepoUrl(c.repoUrl)
@@ -109,12 +212,20 @@ export default function App() {
     } else {
       setConfig(null)
     }
-    setHasPatState(await invoke<boolean>("has_pat"))
+    setHasPatState(await appInvoke<boolean>("has_pat"))
   }, [])
 
   useEffect(() => {
+    if (!isTauri()) {
+      setStatus(TAURI_REQUIRED_MESSAGE)
+      return
+    }
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (config) void refreshRegistries()
+  }, [config, refreshRegistries])
 
   const needsSetup = config === null
 
@@ -132,13 +243,22 @@ export default function App() {
       const nextRows: UploadRow[] = []
       for (const p of filtered) {
         const row = newRowFromPath(p)
-        const hints = await invoke<ImageHints>("read_image_hints", { path: p })
+        const hints = await appInvoke<ImageHints>("read_image_hints", { path: p })
         const parsed = parseIsoToCaptureDate(hints.dateTimeOriginalIso)
         if (parsed) {
           row.captureDate = parsed
         }
         const camParts = [hints.make, hints.model].filter(Boolean) as string[]
-        if (camParts.length) row.camera = camParts.join(" ")
+        if (camParts.length) {
+          const label = camParts.join(" ")
+          const slug = matchEquipmentSlug(label, registries.cameras)
+          if (slug) {
+            row.cameraSelect = slug
+          } else {
+            row.cameraSelect = SELECT_CUSTOM
+            row.cameraCustom = label
+          }
+        }
         nextRows.push(row)
       }
       const have = new Set(rowsRef.current.map((x) => x.sourcePath))
@@ -156,27 +276,23 @@ export default function App() {
     } finally {
       setBusy(false)
     }
-  }, [])
+  }, [registries.cameras])
 
   useEffect(() => {
+    if (!isTauri()) return
     let unlisten: (() => void) | undefined
     let cancelled = false
-    void getCurrentWebview()
-      .onDragDropEvent((e) => {
-        const t = e.payload.type
-        if (t === "enter" || t === "over") setDragOverWindow(true)
-        if (t === "leave" || t === "drop") setDragOverWindow(false)
-        if (t === "drop" && e.payload.paths.length > 0) {
-          void ingestPaths(e.payload.paths)
-        }
-      })
-      .then((fn) => {
-        if (cancelled) {
-          fn()
-          return
-        }
-        unlisten = fn
-      })
+    void listenDragDropEvents({
+      onEnterOrOver: () => setDragOverWindow(true),
+      onLeaveOrDrop: () => setDragOverWindow(false),
+      onDrop: (paths) => void ingestPaths(paths),
+    }).then((fn) => {
+      if (cancelled) {
+        fn()
+        return
+      }
+      unlisten = fn
+    })
     return () => {
       cancelled = true
       unlisten?.()
@@ -193,12 +309,13 @@ export default function App() {
       setStatus(null)
     }
     try {
-      const msg = await invoke<string>("ensure_repo_ready")
+      const msg = await appInvoke<string>("ensure_repo_ready")
       if (context === "after-save") {
         setStatus(`Settings saved. ${msg}`)
       } else {
         setStatus(msg)
       }
+      await refreshRegistries()
     } catch (e) {
       const err = String(e)
       if (context === "after-save") {
@@ -210,7 +327,7 @@ export default function App() {
       repoPrepareLock.current = false
       setRepoPreparing(false)
     }
-  }, [])
+  }, [refreshRegistries])
 
   const saveSettings = async () => {
     setBusy(true)
@@ -218,9 +335,9 @@ export default function App() {
     let ok = false
     try {
       const next: AppConfig = { repoUrl, branch, workdir: "" }
-      await invoke("save_config", { config: next })
+      await appInvoke("save_config", { config: next })
       if (pat.trim()) {
-        await invoke("save_pat", { pat: pat.trim() })
+        await appInvoke("save_pat", { pat: pat.trim() })
         setPat("")
       }
       await load()
@@ -238,21 +355,7 @@ export default function App() {
   }
 
   const addFiles = async () => {
-    const picked = await open({
-      multiple: true,
-      filters: [
-        {
-          name: "Images",
-          extensions: ["jpg", "jpeg", "png", "webp", "avif", "gif"],
-        },
-      ],
-    })
-    const paths =
-      picked === null
-        ? []
-        : Array.isArray(picked)
-          ? picked
-          : [picked]
+    const paths = await appOpenFiles()
     if (paths.length === 0) return
     await ingestPaths(paths)
   }
@@ -267,8 +370,12 @@ export default function App() {
             r.tags,
             r.location,
             r.captureDate,
-            r.camera,
-            r.event,
+            r.cameraSelect,
+            r.lensSelect,
+            r.collectionSelect,
+            r.description,
+            r.hidden,
+            r.sortOrder,
             r.extension,
           ].join("\x1e"),
         )
@@ -277,20 +384,27 @@ export default function App() {
   )
 
   const enrichRowsWithDest = useCallback(async (list: UploadRow[]): Promise<UploadRow[]> => {
+    const taken = new Set<string>()
     const updated: UploadRow[] = []
     for (const r of list) {
-      const dest = r.title.trim() ? buildGalleryFilename(rowFieldsFromRow(r), r.extension) : ""
+      const dest = destPreviewForRow(r, taken)
+      if (dest) taken.add(dest.file.toLowerCase())
       let destExists = false
       if (dest) {
         try {
-          destExists = await invoke<boolean>("gallery_dest_exists", {
-            destFilename: dest,
+          destExists = await appInvoke<boolean>("gallery_dest_exists", {
+            destFilename: dest.file,
           })
         } catch {
           destExists = false
         }
       }
-      updated.push({ ...r, destFilename: dest, destExists })
+      updated.push({
+        ...r,
+        destId: dest?.id ?? "",
+        destFilename: dest?.file ?? "",
+        destExists,
+      })
     }
     return updated
   }, [])
@@ -307,11 +421,14 @@ export default function App() {
           if (!cur.every((r, i) => r.id === updated[i].id)) return cur
           const unchanged = cur.every(
             (r, i) =>
-              r.destFilename === updated[i].destFilename && r.destExists === updated[i].destExists,
+              r.destId === updated[i].destId &&
+              r.destFilename === updated[i].destFilename &&
+              r.destExists === updated[i].destExists,
           )
           if (unchanged) return cur
           return cur.map((r, i) => ({
             ...r,
+            destId: updated[i].destId,
             destFilename: updated[i].destFilename,
             destExists: updated[i].destExists,
           }))
@@ -330,6 +447,24 @@ export default function App() {
   const updateRow = (id: string, patch: Partial<UploadRow>) => {
     setRows((list) => list.map((x) => (x.id === id ? { ...x, ...patch } : x)))
   }
+
+  const handleRegistryCreated = useCallback(
+    (slug: string) => {
+      const req = registryModal
+      if (req?.rowId && req.field) {
+        const patch: Partial<UploadRow> =
+          req.field === "collectionSelect"
+            ? { collectionSelect: slug }
+            : req.field === "cameraSelect"
+              ? { cameraSelect: slug }
+              : { lensSelect: slug }
+        updateRow(req.rowId, patch)
+      }
+      setRegistryModal(null)
+      void refreshRegistries()
+    },
+    [registryModal, refreshRegistries],
+  )
 
   const canUpload =
     allTitlesOk && rows.length > 0 && !busy && !repoPreparing && !rows.some((r) => r.destExists)
@@ -358,23 +493,27 @@ export default function App() {
         trace(`Conflict check: these names already exist in the repo: ${clash.join(", ")}`)
         setRows(ready)
         setStatus(
-          "A file with the same name is already in this gallery. Change titles or tags so each name is unique, then try again.",
+          "A file with the same name is already in this gallery. Change a title so each name is unique, then try again.",
         )
         setErrorDetail(lines.join("\n"))
         return
       }
       setRows(ready)
       trace(`Planned files:\n${ready.map((r) => `${r.destFilename}  <=  ${r.sourcePath}`).join("\n")}`)
+
       setStatus("Copying photos into the gallery…")
-      await invoke("stage_gallery_files", {
+      await appInvoke("stage_gallery_files", {
         items: ready.map((r) => ({
           sourcePath: r.sourcePath,
           destFilename: r.destFilename,
+          metaJson: serializeGalleryMeta(
+            galleryMetaFromUploadFields(rowFieldsFromRow(r), r.destId),
+          ),
         })),
       })
       trace("Copy into public/gallery completed (stage_gallery_files OK).")
       setStatus("Publishing…")
-      const msg = await invoke<string>("git_commit_and_push", {
+      const msg = await appInvoke<string>("git_commit_and_push", {
         message: commitMessage.trim() || "Add photos",
       })
       trace(`git_commit_and_push returned: ${msg}`)
@@ -403,7 +542,7 @@ export default function App() {
   const clearToken = async () => {
     setBusy(true)
     try {
-      await invoke("clear_pat")
+      await appInvoke("clear_pat")
       await load()
       setStatus("Saved token removed from this PC.")
     } catch (e) {
@@ -419,12 +558,20 @@ export default function App() {
         <div>
           <h1>Galleree upload</h1>
           <p className="lede">
-            Add photos with drag-and-drop or Add files, fill in titles and details, then choose Upload pics. Files go
-            under <code>public/gallery/</code> on your gallery site repository. Files over GitHub’s per-file limit
+            Add photos with drag-and-drop or Add files, fill in titles and details, then choose Upload pics. Each photo
+            is saved under <code>public/gallery/</code> with a matching{" "}
+            <code>public/gallery/meta/*.json</code> sidecar on your gallery site repository. Files over GitHub’s
+            per-file limit
             (~100 MiB) are resized before staging so pushes are accepted. Git must be installed and on PATH.
           </p>
         </div>
       </header>
+
+      {!isTauri() ? (
+        <div className="status status--error" role="alert">
+          {TAURI_REQUIRED_MESSAGE}
+        </div>
+      ) : null}
 
       {needsSetup ? (
         <section className="card">
@@ -492,6 +639,36 @@ export default function App() {
                 Edit settings…
               </button>
             </div>
+            <p className="muted registry-project-hint">
+              Create collections, cameras, and lenses before uploading so you can assign them to
+              photos. Equipment can include a product image; collections can pick a cover photo.
+            </p>
+            <div className="actions registry-project-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setRegistryModal({ kind: "collection" })}
+                disabled={busy || repoPreparing}
+              >
+                New collection…
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setRegistryModal({ kind: "camera" })}
+                disabled={busy || repoPreparing}
+              >
+                New camera…
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setRegistryModal({ kind: "lens" })}
+                disabled={busy || repoPreparing}
+              >
+                New lens…
+              </button>
+            </div>
           </section>
 
           <section className="card">
@@ -506,7 +683,13 @@ export default function App() {
             </div>
 
             {rows.length > 0 ? (
-              <PhotoPanels rows={rows} updateRow={updateRow} getDestPreview={destPreviewForRow} />
+              <PhotoPanels
+                rows={rows}
+                registries={registries}
+                updateRow={updateRow}
+                getDestPreview={getDestPreview}
+                onOpenRegistryCreate={setRegistryModal}
+              />
             ) : (
               <p className="muted">No files yet.</p>
             )}
@@ -537,6 +720,16 @@ export default function App() {
           <summary>Technical details</summary>
           <pre className="error-log__pre">{errorDetail}</pre>
         </details>
+      ) : null}
+
+      {registryModal ? (
+        <RegistryCreateModal
+          kind={registryModal.kind}
+          registries={registries}
+          coverCandidates={coverCandidates}
+          onCreated={handleRegistryCreated}
+          onClose={() => setRegistryModal(null)}
+        />
       ) : null}
     </div>
   )

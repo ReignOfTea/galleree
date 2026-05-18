@@ -18,7 +18,12 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@galleree/gallery-meta": ["../../src/lib/galleryMeta.ts"],
+      "@galleree/gallery-collection": ["../../src/lib/galleryCollectionMeta.ts"],
+      "@galleree/gallery-equipment": ["../../src/lib/galleryEquipmentMeta.ts"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

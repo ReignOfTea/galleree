@@ -3,13 +3,22 @@ export type UploadRow = {
   sourcePath: string
   previewSrc: string
   title: string
+  description: string
   tags: string
   location: string
-  /** `YYYY-MM-DD` from the date picker; empty means omit `dt-…` in the filename */
+  /** `YYYY-MM-DD` from the date picker */
   captureDate: string
-  camera: string
-  event: string
+  collectionSelect: string
+  cameraSelect: string
+  cameraCustom: string
+  lensSelect: string
+  lensCustom: string
+  alt: string
+  hidden: boolean
+  sortOrder: string
+  copyright: string
   extension: string
+  destId: string
   destFilename: string
   destExists: boolean
 }

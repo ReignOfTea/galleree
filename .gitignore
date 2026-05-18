@@ -23,8 +23,16 @@ dist-ssr
 *.sln
 *.sw?
 
-# Gallery binaries — keep them out of normal git sync; add via GitHub “Upload files” on the
-# branch or locally with: git add -f public/gallery/your-file.jpg
+# Gallery assets (images, meta/*.json, thumbs) — ignored for normal git sync; publish via the
+# upload tool or: git add -f public/gallery/
 /public/gallery/**
 !/public/gallery/
 !/public/gallery/.gitkeep
+!/public/gallery/meta/
+!/public/gallery/meta/.gitkeep
+!/public/gallery/meta/collections/
+!/public/gallery/meta/collections/.gitkeep
+!/public/gallery/meta/cameras/
+!/public/gallery/meta/cameras/**
+!/public/gallery/meta/lenses/
+!/public/gallery/meta/lenses/**

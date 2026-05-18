@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run tauri -- dev",
+    "dev:vite": "vite --port 1420 --strictPort",
     "build": "tsc && vite build",
     "tauri": "tauri"
   },

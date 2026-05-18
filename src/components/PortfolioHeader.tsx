@@ -6,9 +6,11 @@ import {
 
 type Props = {
   config: SiteConfig
+  /** Tighter intro when about copy sits in a side column. */
+  compact?: boolean
 }
 
-export function PortfolioHeader({ config }: Props) {
+export function PortfolioHeader({ config, compact = false }: Props) {
   const { layout, logoSrc, logoAlt } = resolveHeaderPresentation(config)
   const showTitle = layout === 'title' || layout === 'both'
   const showLogo = logoSrc && (layout === 'logo' || layout === 'both')
@@ -18,8 +20,10 @@ export function PortfolioHeader({ config }: Props) {
   if (config.logoMaxWidth) logoStyle.maxWidth = config.logoMaxWidth
 
   return (
-    <header className="portfolio-header">
-      <p className="portfolio-kicker">Photography</p>
+    <header
+      className={`portfolio-header${compact ? ' portfolio-header-compact' : ''}`}
+    >
+      <p className="portfolio-kicker">{config.kicker?.trim() || 'Photography'}</p>
 
       <h1 className="portfolio-brand-heading">
         {showLogo ? (
@@ -40,8 +44,7 @@ export function PortfolioHeader({ config }: Props) {
       {config.tagline ? (
         <p className="portfolio-tagline">{config.tagline}</p>
       ) : null}
-      {config.bio ? <p className="portfolio-bio">{config.bio}</p> : null}
-      <div className="portfolio-rule" aria-hidden />
+      {!compact ? <div className="portfolio-rule" aria-hidden /> : null}
     </header>
   )
 }

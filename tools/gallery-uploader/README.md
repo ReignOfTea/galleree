@@ -2,6 +2,8 @@
 
 Tauri + React + TypeScript + Vite. Bulk-add photos to a git checkout of the site repo (`public/gallery/`), then commit and push.
 
+Gallery folder layout, sidecar fields, and equipment registries are documented in the [repository README](../../README.md#gallery-layout).
+
 ## GitHub personal access token (clone & push)
 
 The uploader uses Git over HTTPS with a token instead of a password. Create the token on GitHub, then paste it in the app’s first-time setup (or **Edit settings**). The token is stored in the **OS credential store** (e.g. Windows Credential Manager), not in `config.json`.

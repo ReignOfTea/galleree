@@ -7,7 +7,12 @@ import {
   type ThemeMode,
 } from '../lib/theme'
 
-export function ThemeToggle() {
+type Props = {
+  /** Icon-only control for tight toolbars. */
+  compact?: boolean
+}
+
+export function ThemeToggle({ compact = false }: Props) {
   const [mode, setMode] = useState<ThemeMode>(() =>
     typeof window !== 'undefined' ? resolveTheme() : 'light',
   )
@@ -33,7 +38,11 @@ export function ThemeToggle() {
   }, [])
 
   return (
-    <div className="theme-toggle" role="group" aria-label="Color theme">
+    <div
+      className={`theme-toggle${compact ? ' theme-toggle-compact' : ''}`}
+      role="group"
+      aria-label="Color theme"
+    >
       <button
         type="button"
         className={
@@ -58,7 +67,7 @@ export function ThemeToggle() {
             <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
           </svg>
         </span>
-        <span className="theme-toggle-label">Light</span>
+        {compact ? null : <span className="theme-toggle-label">Light</span>}
       </button>
       <button
         type="button"
@@ -83,8 +92,9 @@ export function ThemeToggle() {
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
         </span>
-        <span className="theme-toggle-label">Dark</span>
+        {compact ? null : <span className="theme-toggle-label">Dark</span>}
       </button>
     </div>
   )
 }
+

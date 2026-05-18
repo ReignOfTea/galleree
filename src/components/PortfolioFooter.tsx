@@ -4,41 +4,60 @@ type Props = {
   config: SiteConfig
 }
 
+function isDuplicateMailto(url: string, contactEmail: string): boolean {
+  if (!url.startsWith('mailto:')) return false
+  try {
+    return (
+      decodeURIComponent(url.slice(7)).trim().toLowerCase() ===
+      contactEmail.trim().toLowerCase()
+    )
+  } catch {
+    return url.slice(7).trim().toLowerCase() === contactEmail.trim().toLowerCase()
+  }
+}
+
 export function PortfolioFooter({ config }: Props) {
   const year = new Date().getFullYear()
-  const links = config.social ?? []
+  const contactEmail = config.contactEmail?.trim()
+  const links = (config.social ?? []).filter(
+    (link) => !contactEmail || !isDuplicateMailto(link.url, contactEmail),
+  )
+  const hasNav = Boolean(contactEmail) || links.length > 0
 
-  if (links.length === 0) {
-    return (
-      <footer className="portfolio-footer portfolio-footer-minimal">
+  return (
+    <footer className={`portfolio-footer${hasNav ? '' : ' portfolio-footer-minimal'}`}>
+      <div className="portfolio-footer-inner">
+        {hasNav ? (
+          <nav className="portfolio-footer-nav" aria-label="Contact and social links">
+            {contactEmail ? (
+              <a
+                href={`mailto:${contactEmail}`}
+                className="portfolio-footer-nav-link portfolio-footer-nav-email"
+              >
+                {contactEmail}
+              </a>
+            ) : null}
+            {links.map(({ label, url }) => (
+              <a
+                key={`${label}-${url}`}
+                href={url}
+                className="portfolio-footer-nav-link"
+                target={url.startsWith('mailto:') ? undefined : '_blank'}
+                rel={
+                  url.startsWith('mailto:')
+                    ? undefined
+                    : 'noopener noreferrer'
+                }
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+        ) : null}
         <p className="portfolio-credit">
           © {year} {config.title}
         </p>
-      </footer>
-    )
-  }
-
-  return (
-    <footer className="portfolio-footer">
-      <nav className="portfolio-social" aria-label="Social links">
-        {links.map(({ label, url }) => (
-          <a
-            key={`${label}-${url}`}
-            href={url}
-            target={url.startsWith('mailto:') ? undefined : '_blank'}
-            rel={
-              url.startsWith('mailto:')
-                ? undefined
-                : 'noopener noreferrer'
-            }
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
-      <p className="portfolio-credit">
-        © {year} {config.title}
-      </p>
+      </div>
     </footer>
   )
 }

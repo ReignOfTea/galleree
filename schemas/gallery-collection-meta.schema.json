@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://galleree.dev/schemas/gallery-collection-meta.schema.json",
+  "title": "Galleree collection metadata",
+  "type": "object",
+  "required": ["version", "slug", "title"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": ["string", "null"], "maxLength": 2000 },
+    "coverImageId": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{32}$"
+    }
+  }
+}

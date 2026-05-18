@@ -1,5 +1,10 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+
+const uploaderRoot = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(uploaderRoot, "../..");
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -7,6 +12,19 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@galleree/gallery-meta": path.join(repoRoot, "src/lib/galleryMeta.ts"),
+      "@galleree/gallery-collection": path.join(
+        repoRoot,
+        "src/lib/galleryCollectionMeta.ts",
+      ),
+      "@galleree/gallery-equipment": path.join(
+        repoRoot,
+        "src/lib/galleryEquipmentMeta.ts",
+      ),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

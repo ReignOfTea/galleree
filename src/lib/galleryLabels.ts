@@ -36,10 +36,17 @@ export function formatCaptureDate(
   return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-/** Accessible description: title, location, optional capture date */
-export function galleryImageDescription(e: GalleryLabelFields): string {
+type AltFields = GalleryLabelFields & {
+  alt?: string | null
+  description?: string | null
+}
+
+/** Accessible description: alt, else title + location + date */
+export function galleryImageDescription(e: AltFields): string {
+  if (e.alt?.trim()) return e.alt.trim()
   const title = e.displayTitle ?? e.file
   const parts = [title]
+  if (e.description?.trim()) parts.push(e.description.trim())
   if (e.locationDisplay) parts.push(e.locationDisplay)
   if (e.capturedAt != null) {
     parts.push(
@@ -49,13 +56,13 @@ export function galleryImageDescription(e: GalleryLabelFields): string {
   return parts.join(', ')
 }
 
+/** Caption meta line — excludes camera/lens (shown as separate equipment chips). */
 export function galleryCaptionMetaParts(
   e: Pick<
     GalleryEntry,
     | 'locationDisplay'
     | 'capturedAt'
     | 'capturedAtIsDateOnly'
-    | 'cameraLabel'
     | 'eventLabel'
   >,
 ): string[] {
@@ -64,7 +71,6 @@ export function galleryCaptionMetaParts(
   if (e.capturedAt != null) {
     parts.push(formatCaptureDate(e.capturedAt, e.capturedAtIsDateOnly, 'caption'))
   }
-  if (e.cameraLabel) parts.push(e.cameraLabel)
   if (e.eventLabel) parts.push(e.eventLabel)
   return parts
 }

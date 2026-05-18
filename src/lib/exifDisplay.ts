@@ -116,6 +116,30 @@ const PREFERRED_ORDER = [
 
 export type ExifDisplayRow = { label: string; value: string }
 
+function exifRowsIncludeLens(rows: ExifDisplayRow[]): boolean {
+  return rows.some((r) => r.label === 'Lens')
+}
+
+/** Append gallery lens to the camera-model EXIF row when the file omits LensModel. */
+export function mergeGalleryLensIntoExifCameraModel(
+  rows: ExifDisplayRow[],
+  lensLabel: string | null | undefined,
+): ExifDisplayRow[] {
+  const label = lensLabel?.trim()
+  if (!label || exifRowsIncludeLens(rows)) return rows
+
+  const modelIdx = rows.findIndex(
+    (r) => r.label === 'Camera model' || r.label === 'Model',
+  )
+  if (modelIdx >= 0) {
+    return rows.map((row, i) =>
+      i === modelIdx ? { ...row, value: `${row.value} · ${label}` } : row,
+    )
+  }
+
+  return [...rows, { label: 'Camera model', value: label }]
+}
+
 export function exifToDisplayRows(raw: Record<string, unknown>): ExifDisplayRow[] {
   const seen = new Set<string>()
   const rows: ExifDisplayRow[] = []

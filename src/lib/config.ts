@@ -7,5 +7,5 @@ export const galleryColumns = num(import.meta.env.VITE_GALLERY_COLUMNS, 2)
 
 export const maxConcurrentImageLoads = num(
   import.meta.env.VITE_MAX_CONCURRENT_IMAGE_LOADS,
-  1,
+  3,
 )

@@ -1,5 +1,5 @@
 /**
- * Filename convention (no sidecar metadata):
+ * Legacy filename convention (fallback when `meta/{stem}.json` is missing):
  *
  * **Structured** — underscore-separated segments. Detected when `tags-…` is present.
  *

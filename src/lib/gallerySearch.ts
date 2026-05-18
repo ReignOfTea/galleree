@@ -5,11 +5,16 @@ import { formatCaptureDate } from './galleryLabels'
 function searchHaystack(item: GalleryEntry): string {
   const parts: string[] = [
     item.file,
+    item.imageId,
     item.displayTitle ?? '',
+    item.description ?? '',
+    item.alt ?? '',
     item.locationDisplay ?? '',
     ...item.tags,
     item.cameraLabel ?? '',
+    item.lensLabel ?? '',
     item.eventLabel ?? '',
+    item.collectionSlug ?? '',
   ]
   if (item.capturedAt != null) {
     parts.push(
