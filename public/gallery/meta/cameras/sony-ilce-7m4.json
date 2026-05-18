@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "slug": "sony-ilce-7m4",
+  "name": "Sony α7 IV",
+  "make": "Sony",
+  "model": "ILCE-7M4",
+  "description": "Full-frame mirrorless body.",
+  "image": "meta/cameras/sony-ilce-7m4.png",
+  "lensSlug": "tamron-28-200mm-f28-56-di-iii-rxd"
+}
