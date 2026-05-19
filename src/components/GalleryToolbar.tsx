@@ -12,17 +12,12 @@ type Props = {
   onFiltersToggle: () => void
   filtersActive: boolean
   showFiltersButton: boolean
-  collectionsLabel: string
-  showCollectionsButton: boolean
-  collectionViewActive: boolean
-  onCollectionsOpen: () => void
   showExitCollection: boolean
   onExitCollection: () => void
   showClear: boolean
   onClearAll: () => void
   filtersPanel?: ReactNode
   onFiltersClose: () => void
-  onCollectionsWarmup?: () => void
 }
 
 export function GalleryToolbar({
@@ -34,17 +29,12 @@ export function GalleryToolbar({
   onFiltersToggle,
   filtersActive,
   showFiltersButton,
-  collectionsLabel,
-  showCollectionsButton,
-  collectionViewActive,
-  onCollectionsOpen,
   showExitCollection,
   onExitCollection,
   showClear,
   onClearAll,
   filtersPanel,
   onFiltersClose,
-  onCollectionsWarmup,
 }: Props) {
   const sortIdPrefix = showFiltersButton ? 'sort' : 'sort-mobile'
   const showMenu = showExitCollection || showClear
@@ -139,20 +129,6 @@ export function GalleryToolbar({
       ) : null}
 
       <div className="gallery-toolbar-theme">
-        {showCollectionsButton ? (
-          <button
-            type="button"
-            className={`gallery-toolbar-btn${collectionViewActive ? ' gallery-toolbar-btn-active' : ''}`}
-            onClick={onCollectionsOpen}
-            onPointerEnter={onCollectionsWarmup}
-            onFocus={onCollectionsWarmup}
-          >
-            {collectionsLabel}
-            {collectionViewActive ? (
-              <span className="gallery-toolbar-btn-dot" aria-hidden />
-            ) : null}
-          </button>
-        ) : null}
         <ThemeToggle compact />
       </div>
     </nav>

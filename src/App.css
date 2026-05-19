@@ -332,41 +332,6 @@
   }
 }
 
-.gallery-collections-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
-  margin: 0;
-  padding: 0.38rem 0.7rem;
-  border-radius: 8px;
-  border: 1px solid color-mix(in oklab, var(--hairline) 88%, transparent);
-  background: color-mix(in oklab, var(--bg) 55%, transparent);
-  font: inherit;
-  font-size: 0.84rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-strong);
-  cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease;
-}
-
-.gallery-collections-btn:hover {
-  border-color: color-mix(in oklab, var(--accent) 35%, var(--hairline));
-}
-
-.gallery-collections-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.gallery-collections-btn-active {
-  border-color: color-mix(in oklab, var(--accent) 45%, var(--hairline));
-  background: color-mix(in oklab, var(--accent) 10%, var(--bg));
-}
-
 .gallery-filters-btn {
   display: inline-flex;
   align-items: center;
@@ -1484,8 +1449,8 @@
 }
 
 .collections-strip {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
   border-top: 1px solid var(--hairline);
 }
 
@@ -1494,7 +1459,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.55rem;
 }
 
 .collections-strip-title {
@@ -1529,6 +1494,7 @@
   margin: 0;
   padding: 0;
   display: flex;
+  align-items: stretch;
   gap: 0.75rem;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
@@ -1536,17 +1502,22 @@
   padding-bottom: 0.25rem;
 }
 
-.collections-strip-card {
+.collections-strip-list > li {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: min(11rem, 42vw);
   flex: 0 0 auto;
+  min-width: 0;
+}
+
+.collections-strip-card {
+  display: block;
+  width: min(10rem, 38vw);
+  flex: 1 1 auto;
+  min-height: 100%;
   scroll-snap-align: start;
   padding: 0;
   border: 1px solid var(--hairline);
   border-radius: 10px;
-  background: color-mix(in oklab, var(--bg) 92%, var(--text-strong));
+  background: color-mix(in oklab, var(--hairline) 35%, var(--bg));
   cursor: pointer;
   text-align: left;
   overflow: hidden;
@@ -1561,8 +1532,9 @@
 }
 
 .collections-strip-cover-wrap {
+  position: relative;
   display: block;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 5 / 3;
   overflow: hidden;
   background: color-mix(in oklab, var(--hairline) 40%, var(--bg));
 }
@@ -1571,7 +1543,13 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center 35%;
   display: block;
+  transition: transform 0.2s ease;
+}
+
+.collections-strip-card:hover .collections-strip-cover {
+  transform: scale(1.03);
 }
 
 .collections-strip-cover-placeholder {
@@ -1586,22 +1564,40 @@
 }
 
 .collections-strip-card-text {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.55rem 0.65rem 0.65rem;
+  gap: 0.1rem;
+  padding: 1.35rem 0.5rem 0.45rem;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in oklab, var(--collections-scrim) 35%, transparent) 38%,
+    color-mix(in oklab, var(--collections-scrim) 82%, transparent) 72%,
+    color-mix(in oklab, var(--collections-scrim) 94%, transparent) 100%
+  );
 }
 
 .collections-strip-card-title {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-strong);
-  line-height: 1.25;
+  color: var(--collections-overlay-fg);
+  line-height: 1.22;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-shadow: 0 1px 3px color-mix(in oklab, var(--collections-scrim) 75%, transparent);
 }
 
 .collections-strip-card-count {
-  font-size: 0.72rem;
-  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--collections-overlay-fg-muted);
+  text-shadow: 0 1px 2px color-mix(in oklab, var(--collections-scrim) 70%, transparent);
 }
 
 .collections-modal-root {
@@ -1742,11 +1738,15 @@
 }
 
 .collections-modal-card-title {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.35;
   color: var(--text-strong);
+  min-height: calc(0.9rem * 1.35 * 2);
 }
 
 .collections-modal-card-count {
@@ -2130,11 +2130,17 @@ body.collections-modal-open {
   position: relative;
 }
 
+.lightbox-share-panel[data-viewport-anchored],
+.lightbox-settings-panel[data-viewport-anchored] {
+  z-index: 120;
+}
+
 .lightbox-share-panel {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
   min-width: 12.5rem;
+  max-width: min(18rem, calc(100vw - 1.25rem));
   padding: 0.35rem;
   border-radius: 12px;
   background: rgba(16, 16, 16, 0.94);
@@ -2240,6 +2246,7 @@ body.collections-modal-open {
   top: calc(100% + 6px);
   right: 0;
   min-width: 14.5rem;
+  max-width: min(18rem, calc(100vw - 1.25rem));
   padding: 0.7rem 0.8rem;
   border-radius: 12px;
   background: rgba(16, 16, 16, 0.94);
@@ -3539,5 +3546,14 @@ button.lightbox-details-chip:hover {
   .lightbox-details-chip,
   button.lightbox-details-chip {
     transition: none;
+  }
+
+  .collections-strip-card,
+  .collections-strip-cover {
+    transition: none;
+  }
+
+  .collections-strip-card:hover .collections-strip-cover {
+    transform: none;
   }
 }

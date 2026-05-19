@@ -29,6 +29,7 @@ export function CollectionsStrip({
             <button
               type="button"
               className="collections-strip-card"
+              title={collection.title}
               onClick={() => onSelect(collection.slug)}
             >
               <span className="collections-strip-cover-wrap">
@@ -46,12 +47,12 @@ export function CollectionsStrip({
                     aria-hidden
                   />
                 )}
-              </span>
-              <span className="collections-strip-card-text">
-                <span className="collections-strip-card-title">{collection.title}</span>
-                <span className="collections-strip-card-count">
-                  {collection.imageCount}{' '}
-                  {collection.imageCount === 1 ? 'photo' : 'photos'}
+                <span className="collections-strip-card-text">
+                  <span className="collections-strip-card-title">{collection.title}</span>
+                  <span className="collections-strip-card-count">
+                    {collection.imageCount}{' '}
+                    {collection.imageCount === 1 ? 'photo' : 'photos'}
+                  </span>
                 </span>
               </span>
             </button>

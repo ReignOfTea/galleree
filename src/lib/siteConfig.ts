@@ -65,7 +65,7 @@ export const DEFAULT_EMPTY_MESSAGES = {
   noSearch:
     'No photos match your search. Try different words or clear the search box.',
   noFilters:
-    'No photos match these filters. Try clearing filters or open Collections to browse a series.',
+    'No photos match these filters. Try clearing filters or pick a collection below.',
 } as const
 
 export type ResolvedEmptyMessages = {

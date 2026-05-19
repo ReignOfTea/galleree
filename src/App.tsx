@@ -386,14 +386,6 @@ export default function App() {
               onFiltersToggle={() => setFiltersPanelOpen((open) => !open)}
               filtersActive={filtersFacetActive}
               showFiltersButton={showFilters}
-              collectionsLabel={collectionsLabel}
-              showCollectionsButton={collections.length > 0}
-              collectionViewActive={activeCollectionSlug != null}
-              onCollectionsOpen={() => {
-                warmupCollectionCovers()
-                setCollectionsModalOpen(true)
-              }}
-              onCollectionsWarmup={warmupCollectionCovers}
               showExitCollection={activeCollectionSlug != null}
               onExitCollection={exitCollection}
               showClear={showClearFilters}

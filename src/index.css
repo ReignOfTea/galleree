@@ -30,6 +30,9 @@
   --hairline: color-mix(in oklab, var(--text-strong) 8%, transparent);
   --skeleton: #ececea;
   --frame-shadow: 0 8px 32px rgba(28, 25, 23, 0.06);
+  --collections-scrim: #040404;
+  --collections-overlay-fg: #fff;
+  --collections-overlay-fg-muted: rgba(255, 255, 255, 0.82);
 
   color: var(--text);
   background: var(--bg-page);
@@ -46,6 +49,9 @@
   --hairline: color-mix(in oklab, var(--text-strong) 11%, transparent);
   --skeleton: #1c1c1a;
   --frame-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --collections-scrim: #060606;
+  --collections-overlay-fg: rgba(255, 255, 255, 0.96);
+  --collections-overlay-fg-muted: rgba(255, 255, 255, 0.78);
 
   color: var(--text);
   background: var(--bg-page);

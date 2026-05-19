@@ -76,6 +76,7 @@ export function CollectionsModal({
               <button
                 type="button"
                 className="collections-modal-card"
+                title={collection.title}
                 onClick={() => onSelect(collection.slug)}
               >
                 <span className="collections-modal-cover-wrap">

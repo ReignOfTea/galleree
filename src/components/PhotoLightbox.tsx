@@ -32,6 +32,7 @@ import { collectionPageUrl } from '../lib/collectionDeepLink'
 import { shareGalleryPageOnSocials } from '../lib/shareGalleryPhoto'
 import type { EquipmentOpenContext } from './EquipmentCaptionLink'
 import { LightboxEquipmentValue } from './LightboxEquipmentValue'
+import { useViewportAnchoredPopover } from '../lib/anchorPopover'
 import { useFocusTrap } from '../lib/focusTrap'
 import {
   DetailCollectionPeers,
@@ -174,6 +175,10 @@ export function PhotoLightbox({
   const [shareNotice, setShareNotice] = useState<string | null>(null)
   const shareBtnRef = useRef<HTMLButtonElement>(null)
   const sharePanelRef = useRef<HTMLDivElement>(null)
+  const settingsDetailsRef = useRef<HTMLDetailsElement>(null)
+  const settingsTriggerRef = useRef<HTMLElement>(null)
+  const settingsPanelRef = useRef<HTMLDivElement>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
@@ -187,6 +192,17 @@ export function PhotoLightbox({
   const [ambientInteracting, setAmbientInteracting] = useState(false)
   const imageRef = useRef<HTMLImageElement>(null)
   const exifState = useImageExif(detailsOpen ? photo.url : null)
+
+  useViewportAnchoredPopover(shareBtnRef, sharePanelRef, shareOpen)
+  useViewportAnchoredPopover(settingsTriggerRef, settingsPanelRef, settingsOpen)
+
+  useEffect(() => {
+    const details = settingsDetailsRef.current
+    if (!details) return
+    const onToggle = () => setSettingsOpen(details.open)
+    details.addEventListener('toggle', onToggle)
+    return () => details.removeEventListener('toggle', onToggle)
+  }, [])
 
   useEffect(() => {
     setImageLoaded(false)
@@ -912,8 +928,9 @@ export function PhotoLightbox({
             >
               <IconInfo className="lightbox-tool-icon-svg" />
             </button>
-            <details className="lightbox-settings">
+            <details ref={settingsDetailsRef} className="lightbox-settings">
               <summary
+                ref={settingsTriggerRef}
                 className="lightbox-tool-icon lightbox-settings-trigger"
                 aria-label="Viewer settings"
                 title="Viewer settings"
@@ -933,6 +950,7 @@ export function PhotoLightbox({
                 </span>
               </summary>
               <div
+                ref={settingsPanelRef}
                 className="lightbox-settings-panel"
                 onClick={(e) => e.stopPropagation()}
               >
