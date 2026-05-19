@@ -47,6 +47,7 @@ export type ResolvedGalleryImage = {
   thumbAspect: number
   /** Absolute `https://…` URL for static share page when manifest includes `siteUrl` build output */
   sharePageUrl: string | null
+  blurHash: string | null
 }
 
 /** Resolved image plus gallery metadata for grid & lightbox */
@@ -102,6 +103,7 @@ export function useGalleryManifest(): {
         thumbHeight,
         shareStub,
         sharePageUrl: manifestShareUrl,
+        blurHash,
       }) => ({
         file,
         url: `${base}gallery/${encodeGallerySegments(file)}`,
@@ -114,6 +116,7 @@ export function useGalleryManifest(): {
           shareStub,
           base,
         ),
+        blurHash: blurHash ?? null,
         ...resolveEntryMeta(meta, {
           collectionTitleBySlug: collectionTitles,
           cameras: cameraMap,

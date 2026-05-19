@@ -1,10 +1,12 @@
 import type { FilenameMeta } from './filenameMeta'
 import { isValidCollectionSlug } from './galleryCollectionMeta'
 import {
+  normalizeEquipmentField,
   resolveEquipmentRef,
   type ResolvedEquipment,
   type ResolvedEquipmentRef,
 } from './galleryEquipmentMeta'
+import { normalizeGalleryTags } from './galleryTags'
 
 export const GALLERY_META_VERSION = 1 as const
 
@@ -41,6 +43,7 @@ export type GalleryImageMetaFile = {
   sortOrder: number | null
   copyright: string | null
   uploadedAt: string | null
+  blurHash: string | null
 }
 
 export type GalleryMetaSource = 'json'
@@ -212,8 +215,9 @@ export function parseGalleryMetaFile(
   if (options.expectedId && id !== options.expectedId.toLowerCase()) return null
 
   const location = nullableString(raw.location)
-  let tags = normalizeStringArray(raw.tags)
-  tags = stripLocationFromTags(tags, location)
+  let tags = normalizeGalleryTags(
+    stripLocationFromTags(normalizeStringArray(raw.tags), location),
+  )
 
   return {
     version: GALLERY_META_VERSION,
@@ -224,14 +228,15 @@ export function parseGalleryMetaFile(
     location,
     capturedOn: normalizeCapturedOn(raw.capturedOn),
     capturedAt: normalizeIsoDateTime(raw.capturedAt),
-    camera: nullableString(raw.camera),
-    lens: nullableString(raw.lens),
+    camera: normalizeEquipmentField(nullableString(raw.camera)),
+    lens: normalizeEquipmentField(nullableString(raw.lens)),
     collectionSlug: parseCollectionSlug(raw),
     alt: nullableString(raw.alt),
     hidden: normalizeBoolean(raw.hidden, false),
     sortOrder: normalizeSortOrder(raw.sortOrder),
     copyright: nullableString(raw.copyright),
     uploadedAt: normalizeIsoDateTime(raw.uploadedAt),
+    blurHash: nullableString(raw.blurHash),
   }
 }
 
@@ -299,7 +304,9 @@ export function galleryMetaFromUploadFields(
   const title = fields.title.trim() || 'Untitled'
   let tags = fields.tags.map((t) => t.trim()).filter(Boolean)
   if (tags.length === 0) tags = [title]
-  tags = stripLocationFromTags(tags, fields.location.trim() || null)
+  tags = normalizeGalleryTags(
+    stripLocationFromTags(tags, fields.location.trim() || null),
+  )
 
   const collectionSlugRaw = fields.collectionSlug?.trim().toLowerCase() ?? ''
   const collectionSlug =
@@ -321,14 +328,15 @@ export function galleryMetaFromUploadFields(
     location: fields.location.trim() || null,
     capturedOn,
     capturedAt,
-    camera: fields.camera.trim() || null,
-    lens: fields.lens.trim() || null,
+    camera: normalizeEquipmentField(fields.camera.trim() || null),
+    lens: normalizeEquipmentField(fields.lens.trim() || null),
     collectionSlug: collectionSlug ?? null,
     alt: fields.alt.trim() || null,
     hidden: fields.hidden,
     sortOrder: fields.sortOrder,
     copyright: fields.copyright.trim() || null,
     uploadedAt: uploadedAt ?? nowIsoTimestamp(),
+    blurHash: null,
   }
 }
 
@@ -352,6 +360,7 @@ export function serializeGalleryMeta(meta: GalleryImageMetaFile): string {
   if (meta.sortOrder != null) out.sortOrder = meta.sortOrder
   if (meta.copyright) out.copyright = meta.copyright
   if (meta.uploadedAt) out.uploadedAt = meta.uploadedAt
+  if (meta.blurHash) out.blurHash = meta.blurHash
   return `${JSON.stringify(out, null, 2)}\n`
 }
 

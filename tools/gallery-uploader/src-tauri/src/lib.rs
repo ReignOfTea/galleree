@@ -488,6 +488,29 @@ const TARGET_STAGED_BYTES: u64 = SAFE_MAX_STAGED_BYTES;
 
 const MIN_LONG_EDGE: u32 = 960;
 
+fn blur_hash_from_image(path: &Path) -> Option<String> {
+    let img = image::open(path).ok()?;
+    let thumb = img.thumbnail(32, 32);
+    let rgba = thumb.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    blurhash::encode(4, 4, w, h, rgba.as_raw()).ok()
+}
+
+fn meta_json_with_blur_hash(json: &str, image_path: &Path) -> String {
+    let Ok(mut value) = serde_json::from_str::<serde_json::Value>(json) else {
+        return json.to_string();
+    };
+    if let Some(hash) = blur_hash_from_image(image_path) {
+        if let Some(obj) = value.as_object_mut() {
+            obj.insert("blurHash".to_string(), serde_json::Value::String(hash));
+        }
+    }
+    match serde_json::to_string_pretty(&value) {
+        Ok(s) => format!("{s}\n"),
+        Err(_) => json.to_string(),
+    }
+}
+
 fn resize_to_max_side(img: &DynamicImage, max_side: u32) -> DynamicImage {
     let (w, h) = img.dimensions();
     let m = w.max(h);
@@ -699,6 +722,47 @@ fn list_gallery_images(app: tauri::AppHandle) -> Result<Vec<GalleryImageRef>, St
 }
 
 #[tauri::command]
+fn list_gallery_tags(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let meta_dir = gallery_dir.join("meta");
+    let mut tags = std::collections::BTreeSet::<String>::new();
+    if !meta_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    for entry in std::fs::read_dir(&meta_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !is_gallery_image_id(stem) {
+            continue;
+        }
+        let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            continue;
+        };
+        let Some(arr) = v.get("tags").and_then(|x| x.as_array()) else {
+            continue;
+        };
+        for item in arr {
+            if let Some(s) = item.as_str() {
+                let t = s.trim();
+                if !t.is_empty() {
+                    tags.insert(t.to_string());
+                }
+            }
+        }
+    }
+    let mut out: Vec<String> = tags.into_iter().collect();
+    out.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    Ok(out)
+}
+
+#[tauri::command]
 fn write_registry_asset(
     app: tauri::AppHandle,
     relative_path: String,
@@ -790,7 +854,8 @@ fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<V
             let meta_dir = gallery_dir.join("meta");
             std::fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
             let meta_path = meta_dir.join(format!("{stem}.json"));
-            std::fs::write(&meta_path, json.as_bytes())
+            let enriched = meta_json_with_blur_hash(json, &dest);
+            std::fs::write(&meta_path, enriched.as_bytes())
                 .map_err(|e| format!("write meta/{stem}.json: {e}"))?;
         }
 
@@ -872,6 +937,7 @@ pub fn run() {
             ensure_repo_ready,
             list_gallery_registries,
             list_gallery_images,
+            list_gallery_tags,
             write_gallery_registry_file,
             write_registry_asset,
             stage_gallery_files,

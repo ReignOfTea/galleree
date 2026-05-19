@@ -6,6 +6,7 @@ import {
   galleryCaptionMetaParts,
   galleryImageDescription,
 } from '../lib/galleryLabels'
+import { GalleryBlurPlaceholder } from './GalleryBlurPlaceholder'
 
 type Props = {
   row: GalleryEntry[]
@@ -14,9 +15,13 @@ type Props = {
   /** Load thumbnails immediately (first rows above the fold). */
   priority?: boolean
   onPhotoOpen?: (item: GalleryEntry) => void
+  /** Hover / focus / touch — start loading the full image before click. */
+  onPhotoWarm?: (item: GalleryEntry) => void
   selectedTagSet: ReadonlySet<string>
   onToggleTag: (tag: string) => void
 }
+
+const GRID_TAG_PREVIEW = 2
 
 export function GalleryRow({
   row,
@@ -24,6 +29,7 @@ export function GalleryRow({
   gate,
   priority = false,
   onPhotoOpen,
+  onPhotoWarm,
   selectedTagSet,
   onToggleTag,
 }: Props) {
@@ -32,6 +38,18 @@ export function GalleryRow({
   const [sources, setSources] = useState<(string | null)[]>(() =>
     row.map(() => null),
   )
+  const [expandedTagFiles, setExpandedTagFiles] = useState<Set<string>>(
+    () => new Set(),
+  )
+
+  const toggleTagsExpanded = (file: string) => {
+    setExpandedTagFiles((prev) => {
+      const next = new Set(prev)
+      if (next.has(file)) next.delete(file)
+      else next.add(file)
+      return next
+    })
+  }
 
   useEffect(() => {
     const el = rootRef.current
@@ -96,6 +114,11 @@ export function GalleryRow({
         const captionDescription = item.description?.trim() ?? ''
         const metaParts = galleryCaptionMetaParts(item)
         const captionTags = item.tags.filter((t) => t !== item.locationDisplay)
+        const tagsExpanded = expandedTagFiles.has(item.file)
+        const hiddenTagCount = Math.max(0, captionTags.length - GRID_TAG_PREVIEW)
+        const visibleTags = tagsExpanded
+          ? captionTags
+          : captionTags.slice(0, GRID_TAG_PREVIEW)
         const showMetaLine = metaParts.length > 0
 
         return (
@@ -113,8 +136,10 @@ export function GalleryRow({
                 type="button"
                 className="gallery-thumb"
                 aria-label={`Open ${captionTitle} fullscreen`}
-                disabled={!sources[i]}
-                onClick={() => sources[i] && onPhotoOpen?.(item)}
+                onPointerEnter={() => onPhotoWarm?.(item)}
+                onFocus={() => onPhotoWarm?.(item)}
+                onTouchStart={() => onPhotoWarm?.(item)}
+                onClick={() => onPhotoOpen?.(item)}
               >
                 <div
                   className="gallery-aspect"
@@ -132,7 +157,7 @@ export function GalleryRow({
                       fetchPriority="low"
                     />
                   ) : (
-                    <div className="gallery-skeleton" aria-hidden />
+                    <GalleryBlurPlaceholder blurHash={item.blurHash} />
                   )}
                 </div>
               </button>
@@ -155,7 +180,7 @@ export function GalleryRow({
                 ) : null}
                 {captionTags.length > 0 ? (
                   <ul className="gallery-caption-tags" aria-label="Tags">
-                    {captionTags.map((tag) => {
+                    {visibleTags.map((tag) => {
                       const active = selectedTagSet.has(tag)
                       return (
                         <li key={tag}>
@@ -173,6 +198,23 @@ export function GalleryRow({
                         </li>
                       )
                     })}
+                    {hiddenTagCount > 0 ? (
+                      <li>
+                        <button
+                          type="button"
+                          className="gallery-caption-tag gallery-caption-tag-more"
+                          aria-expanded={tagsExpanded}
+                          aria-label={
+                            tagsExpanded
+                              ? 'Show fewer tags'
+                              : `Show ${hiddenTagCount} more tags`
+                          }
+                          onClick={() => toggleTagsExpanded(item.file)}
+                        >
+                          {tagsExpanded ? 'Less' : `+${hiddenTagCount}`}
+                        </button>
+                      </li>
+                    ) : null}
                   </ul>
                 ) : null}
               </figcaption>

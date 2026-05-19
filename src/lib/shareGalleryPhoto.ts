@@ -151,3 +151,45 @@ export async function shareGalleryPhoto(opts: {
       'Sharing is not available. Try “Save”, then upload the file from your device.',
   }
 }
+
+/** Native share sheet (mobile) or copy the gallery page link (desktop). */
+export async function shareGalleryPageOnSocials(opts: {
+  title: string
+  text: string
+  pageUrl: string
+}): Promise<ShareGalleryResult> {
+  const { title, text, pageUrl } = opts
+  const nav = navigator as Navigator & {
+    share?: (data: ShareData) => Promise<void>
+  }
+
+  const combinedText =
+    text.includes(pageUrl) || !pageUrl
+      ? text
+      : `${text}\n${pageUrl}`.trim()
+
+  if (nav.share) {
+    try {
+      await nav.share({
+        title,
+        text: combinedText,
+        url: pageUrl || undefined,
+      })
+      return { ok: true, mode: 'native-url' }
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        return { ok: false, reason: 'abort' }
+      }
+    }
+  }
+
+  if (pageUrl && (await copyPageUrlToClipboard(pageUrl))) {
+    return { ok: true, mode: 'clipboard-url' }
+  }
+
+  return {
+    ok: false,
+    reason: 'unsupported',
+    message: 'Could not share or copy the link.',
+  }
+}

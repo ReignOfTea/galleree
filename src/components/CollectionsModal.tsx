@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useFocusTrap } from '../lib/focusTrap'
 import { createPortal } from 'react-dom'
 import type { GalleryCollection } from '../lib/galleryCollections'
 
@@ -15,6 +16,9 @@ export function CollectionsModal({
   onSelect,
   onClose,
 }: Props) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, true, { initialFocus: 'first' })
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -42,7 +46,9 @@ export function CollectionsModal({
         onClick={onClose}
       />
       <div
+        ref={panelRef}
         className="collections-modal-panel"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="collections-modal-header">

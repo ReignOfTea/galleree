@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { galleryColumns, maxConcurrentImageLoads } from '../lib/config'
+import { GALLERY_HOME_NAV_EVENT } from '../lib/galleryHomeNav'
 import {
   clearPhotoFromLocation,
   parsePhotoFromLocation,
@@ -7,6 +8,10 @@ import {
   setPhotoInLocation,
 } from '../lib/photoDeepLink'
 import { createLoadGate } from '../lib/loadGate'
+import {
+  preloadLightboxImage,
+  scheduleLightboxNeighborsPreload,
+} from '../lib/lightboxPreload'
 import { packJustifiedGalleryRows } from '../lib/galleryJustifiedLayout'
 import type { GalleryEntry } from '../hooks/useGalleryManifest'
 import { useGalleryManifest } from '../hooks/useGalleryManifest'
@@ -26,6 +31,8 @@ type Props = {
   /** Full gallery (ignores tag filter) for resolving `#photo=` / `?photo=` links. */
   allItems: GalleryEntry[]
   siteTitle: string
+  /** Active collection filter — enables “Copy collection link” in the lightbox. */
+  collectionSlug?: string | null
   /** Why the grid is empty when filters/search yield nothing */
   emptyHint?: 'filters' | 'search'
   emptyMessages: ResolvedEmptyMessages
@@ -52,12 +59,14 @@ export function Gallery({
   items,
   allItems,
   siteTitle,
+  collectionSlug = null,
   emptyHint,
   emptyMessages,
   selectedTags,
   onToggleTag,
 }: Props) {
   const [lightbox, setLightbox] = useState<LightboxPhoto | null>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const [equipmentModal, setEquipmentModal] =
     useState<EquipmentOpenContext | null>(null)
   const { equipment } = useGalleryManifest()
@@ -89,9 +98,34 @@ export function Gallery({
     }
   }, [allItems])
 
+  useEffect(() => {
+    const onHome = () => {
+      setLightbox(null)
+      setEquipmentModal(null)
+      clearPhotoFromLocation()
+    }
+    window.addEventListener(GALLERY_HOME_NAV_EVENT, onHome)
+    return () => window.removeEventListener(GALLERY_HOME_NAV_EVENT, onHome)
+  }, [])
+
   const openLightbox = useCallback((item: GalleryEntry) => {
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+    preloadLightboxImage(item.url)
     setLightbox(toLightboxPhoto(item))
   }, [])
+
+  const warmLightboxImage = useCallback((item: GalleryEntry) => {
+    preloadLightboxImage(item.url)
+  }, [])
+
+  useEffect(() => {
+    if (!lightbox) return
+    preloadLightboxImage(lightbox.url)
+    scheduleLightboxNeighborsPreload(items, lightbox.file)
+  }, [lightbox, items])
 
   const openEquipment = useCallback((ctx: EquipmentOpenContext) => {
     if (!ctx.cameraRef.hasRegistry) return
@@ -130,12 +164,43 @@ export function Gallery({
     [items],
   )
 
+  const openCollectionPeer = useCallback((entry: GalleryEntry) => {
+    preloadLightboxImage(entry.url)
+    setLightbox(toLightboxPhoto(entry))
+  }, [])
+
+  const collectionPeersFor = useCallback(
+    (photo: LightboxPhoto) => {
+      const slug = photo.collectionSlug
+      if (!slug) return []
+      return allItems
+        .filter(
+          (e) => e.collectionSlug === slug && e.file !== photo.file,
+        )
+        .slice(0, 4)
+    },
+    [allItems],
+  )
+
   const closeLightbox = useCallback(() => {
     setLightbox(null)
     if (photoIsInLocation()) {
       clearPhotoFromLocation()
     }
+    const el = returnFocusRef.current
+    returnFocusRef.current = null
+    queueMicrotask(() => el?.focus({ preventScroll: true }))
   }, [])
+
+  useEffect(() => {
+    if (!lightbox) return
+    const prev = document.title
+    const label = lightbox.displayTitle ?? lightbox.file
+    document.title = `${label} — ${siteTitle}`
+    return () => {
+      document.title = prev
+    }
+  }, [lightbox, siteTitle])
 
   useEffect(() => {
     const el = gridRef.current
@@ -195,6 +260,7 @@ export function Gallery({
             gate={gate}
             priority={rowIndex < 3}
             onPhotoOpen={openLightbox}
+            onPhotoWarm={warmLightboxImage}
             selectedTagSet={selectedTagSet}
             onToggleTag={onToggleTag}
           />
@@ -202,12 +268,16 @@ export function Gallery({
       </div>
       {lightbox ? (
         <PhotoLightbox
-          key={lightbox.file}
           photo={lightbox}
           siteTitle={siteTitle}
+          collectionSlug={collectionSlug}
           onClose={closeLightbox}
           onAdjacent={items.length > 1 ? goAdjacent : undefined}
           onEquipmentOpen={openEquipment}
+          collectionPeers={collectionPeersFor(lightbox)}
+          onOpenCollectionPeer={openCollectionPeer}
+          selectedTags={selectedTags}
+          onToggleTag={onToggleTag}
         />
       ) : null}
       {equipmentModal && equipmentDetail ? (

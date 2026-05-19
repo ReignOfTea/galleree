@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { TagsInput } from "./components/TagsInput"
 import type { GalleryRegistries, RegistryModalRequest } from "./registryTypes"
 import { SELECT_CUSTOM, SELECT_NONE } from "./registryTypes"
 import type { UploadRow } from "./types"
@@ -12,6 +13,7 @@ function basename(p: string): string {
 type Props = {
   rows: UploadRow[]
   registries: GalleryRegistries
+  knownTags: readonly string[]
   updateRow: (id: string, patch: Partial<UploadRow>) => void
   getDestPreview: (r: UploadRow) => { id: string; file: string } | null
   onOpenRegistryCreate: (request: RegistryModalRequest) => void
@@ -21,20 +23,25 @@ function RegistryFieldRow({
   label,
   select,
   onCreate,
+  extra,
 }: {
   label: string
   select: ReactNode
   onCreate: () => void
+  extra?: ReactNode
 }) {
   return (
-    <div className="field-with-action">
-      <label className="field field-with-action__field">
-        <span>{label}</span>
-        {select}
-      </label>
-      <button type="button" className="ghost field-with-action__btn" onClick={onCreate}>
-        New…
-      </button>
+    <div className="registry-field-block">
+      <div className="field-with-action">
+        <label className="field field-with-action__field">
+          <span>{label}</span>
+          {select}
+        </label>
+        <button type="button" className="ghost field-with-action__btn" onClick={onCreate}>
+          New…
+        </button>
+      </div>
+      {extra}
     </div>
   )
 }
@@ -42,6 +49,7 @@ function RegistryFieldRow({
 export function PhotoPanels({
   rows,
   registries,
+  knownTags,
   updateRow,
   getDestPreview,
   onOpenRegistryCreate,
@@ -100,11 +108,11 @@ export function PhotoPanels({
                 </label>
                 <label className="field">
                   <span>Tags (comma-separated)</span>
-                  <input
+                  <TagsInput
                     value={r.tags}
-                    onChange={(e) => updateRow(r.id, { tags: e.target.value })}
+                    knownTags={knownTags}
                     placeholder="photos, travel"
-                    autoComplete="off"
+                    onChange={(tags) => updateRow(r.id, { tags })}
                   />
                 </label>
                 <label className="field">
@@ -137,9 +145,13 @@ export function PhotoPanels({
                   select={
                     <select
                       value={r.collectionSelect}
-                      onChange={(e) =>
-                        updateRow(r.id, { collectionSelect: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const slug = e.target.value
+                        updateRow(r.id, {
+                          collectionSelect: slug,
+                          ...(slug === SELECT_NONE ? { collectionSetCover: false } : {}),
+                        })
+                      }}
                     >
                       <option value={SELECT_NONE}>No collection</option>
                       {registries.collections.map((c) => (
@@ -148,6 +160,28 @@ export function PhotoPanels({
                         </option>
                       ))}
                     </select>
+                  }
+                  extra={
+                    r.collectionSelect !== SELECT_NONE ? (
+                      <div className="collection-cover-option">
+                        <label className="field field--inline">
+                          <input
+                            type="checkbox"
+                            checked={r.collectionSetCover}
+                            disabled={!r.destId}
+                            onChange={(e) =>
+                              updateRow(r.id, { collectionSetCover: e.target.checked })
+                            }
+                          />
+                          <span>Make cover photo</span>
+                        </label>
+                        {!r.destId ? (
+                          <p className="collection-cover-option__hint muted">
+                            Add a title so this photo gets a gallery id.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null
                   }
                 />
 

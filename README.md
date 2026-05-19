@@ -81,6 +81,8 @@ Common optional fields:
 | `collectionSlug` | Slug matching `meta/collections/{slug}.json` |
 | `alt`, `hidden`, `sortOrder`, `copyright`, `uploadedAt` | Accessibility, ordering, rights |
 
+Tags and equipment slugs are normalized when meta is read (`Youtuber` → `YouTuber`, camera labels → registry slugs when possible). The Atom feed includes JPEG enclosures (thumbs when available). Set `copyright` in `site.json` for a footer rights line.
+
 Example:
 
 ```json
@@ -119,6 +121,17 @@ Slugs are lowercase hyphenated (e.g. `sony-ilce-7m4`). Image sidecars may use th
 - `public/gallery/meta/collections/**`
 
 To commit photos and sidecars: `git add -f public/gallery/` (or use the desktop uploader below).
+
+### Sync with `origin/master`
+
+| Script | Command |
+|--------|---------|
+| Pull remote gallery into this checkout | `npm run gallery:pull` |
+| Push local gallery + `site.json` / logo / CNAME to remote | `npm run gallery:push` |
+
+`gallery:pull` deletes local images, photo sidecars (`meta/{id}.json`), thumbs, and registry files under `public/gallery/`, then checks out the same paths from `origin/master` (override with `GALLERY_SYNC_REMOTE` / `GALLERY_SYNC_BRANCH`).
+
+`gallery:push` runs `git pull --rebase`, `git add -f public/gallery/`, stages site config files if present, commits, and pushes to `master`. Set `GALLERY_SYNC_COMMIT_MESSAGE`, `GALLERY_SYNC_SKIP_PULL=1`, or `GALLERY_SYNC_DRY=1` as needed. You must be on `master` unless `GALLERY_SYNC_ALLOW_ANY_BRANCH=1`.
 
 ## Desktop uploader
 

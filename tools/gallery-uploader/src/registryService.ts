@@ -11,6 +11,7 @@ import {
   serializeGalleryEquipmentMeta,
 } from "@galleree/gallery-equipment"
 import { appInvoke } from "./tauriBridge"
+import type { GalleryRegistries } from "./registryTypes"
 
 async function writeRegistryJson(relativePath: string, json: string): Promise<void> {
   await appInvoke("write_gallery_registry_file", { relativePath, json })
@@ -58,6 +59,33 @@ export async function saveCollectionRegistry(
     }),
   )
   return slug
+}
+
+/** Updates an existing collection registry to use a gallery image id as its cover. */
+export async function setCollectionCoverPhoto(
+  slug: string,
+  coverImageId: string,
+  registries: GalleryRegistries,
+): Promise<void> {
+  const col = registries.collections.find((c) => c.slug === slug)
+  if (!col) {
+    throw new Error(`Collection “${slug}” was not found in the gallery project.`)
+  }
+  const id = coverImageId.trim().toLowerCase()
+  if (!id) {
+    throw new Error("This photo does not have a gallery id yet — add a title first.")
+  }
+
+  await writeRegistryJson(
+    `meta/collections/${slug}.json`,
+    serializeGalleryCollectionMeta({
+      version: GALLERY_COLLECTION_META_VERSION,
+      slug,
+      title: col.title,
+      description: col.description,
+      coverImageId: id,
+    }),
+  )
 }
 
 export async function saveCameraRegistry(input: SaveEquipmentInput): Promise<string> {
@@ -123,4 +151,8 @@ export async function fetchGalleryImages(): Promise<
   import("./registryTypes").GalleryImageRef[]
 > {
   return appInvoke("list_gallery_images")
+}
+
+export async function fetchGalleryTags(): Promise<string[]> {
+  return appInvoke("list_gallery_tags")
 }

@@ -9,6 +9,8 @@ export type UploadRow = {
   /** `YYYY-MM-DD` from the date picker */
   captureDate: string
   collectionSelect: string
+  /** When true, sets this photo as the selected collection’s cover on upload. */
+  collectionSetCover: boolean
   cameraSelect: string
   cameraCustom: string
   lensSelect: string

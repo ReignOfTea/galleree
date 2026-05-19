@@ -60,6 +60,11 @@
   background: var(--bg);
 }
 
+html {
+  /* Reserve scrollbar space so locking scroll (modals) does not shift layout. */
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
 }

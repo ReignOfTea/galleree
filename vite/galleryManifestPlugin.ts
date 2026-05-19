@@ -17,6 +17,7 @@ import {
   type GalleryImageMetaFile,
 } from '../src/lib/galleryMeta'
 import { absolutePublicUrl, loadSiteForShare } from './galleryShareHtml'
+import { blurHashFromImagePath } from './blurHashEncode'
 import { galleryShareStubId } from './sharePageHash'
 
 const VIRTUAL_ID = 'virtual:gallery-manifest'
@@ -121,6 +122,7 @@ async function readManifestImages(
   thumbHeight?: number
   shareStub?: string
   sharePageUrl?: string
+  blurHash?: string
 }[]> {
   const metaDir = path.join(galleryDir, 'meta')
   if (!fs.existsSync(metaDir)) return []
@@ -133,6 +135,7 @@ async function readManifestImages(
     thumbHeight?: number
     shareStub?: string
     sharePageUrl?: string
+    blurHash?: string
   }[] = []
 
   for (const ent of fs.readdirSync(metaDir, { withFileTypes: true })) {
@@ -168,7 +171,12 @@ async function readManifestImages(
       thumbHeight?: number
       shareStub?: string
       sharePageUrl?: string
+      blurHash?: string
     } = { file: galleryFile, meta }
+    if (meta.blurHash) {
+      entry.blurHash = meta.blurHash
+    }
+    const srcAbs = path.join(galleryDir, galleryFile)
     if (fs.existsSync(thumbAbs)) {
       entry.thumb = thumb
       const size = await imagePixelSize(thumbAbs)
@@ -176,12 +184,19 @@ async function readManifestImages(
         entry.thumbWidth = size.width
         entry.thumbHeight = size.height
       }
+      if (!entry.blurHash) {
+        entry.blurHash =
+          (await blurHashFromImagePath(thumbAbs)) ?? undefined
+      }
     } else {
-      const srcAbs = path.join(galleryDir, galleryFile)
       const size = await imagePixelSize(srcAbs)
       if (size) {
         entry.thumbWidth = size.width
         entry.thumbHeight = size.height
+      }
+      if (!entry.blurHash) {
+        entry.blurHash =
+          (await blurHashFromImagePath(srcAbs)) ?? undefined
       }
     }
 

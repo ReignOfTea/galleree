@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
+import { blurHashFromImagePath } from '../vite/blurHashEncode.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
@@ -28,6 +29,20 @@ const IMAGE_EXT = new Set([
 
 const ID_RE = /^[a-f0-9]{32}$/i
 
+async function writeBlurHashToMeta(metaPath, imagePath) {
+  try {
+    const hash = await blurHashFromImagePath(imagePath)
+    if (!hash) return false
+    const raw = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
+    if (!raw || typeof raw !== 'object' || raw.blurHash === hash) return false
+    raw.blurHash = hash
+    fs.writeFileSync(metaPath, `${JSON.stringify(raw, null, 2)}\n`, 'utf8')
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function main() {
   if (process.env.SKIP_THUMBS === '1') {
     console.warn('[gallery-thumbs] SKIP_THUMBS=1 — skipping thumbnail generation.')
@@ -43,6 +58,7 @@ async function main() {
 
   let wrote = 0
   let skipped = 0
+  let blurUpdated = 0
 
   for (const ent of fs.readdirSync(metaDir, { withFileTypes: true })) {
     if (!ent.isFile() || !ent.name.endsWith('.json')) continue
@@ -60,12 +76,14 @@ async function main() {
     if (!src) continue
 
     const dest = path.join(thumbsDir, `${id}.jpg`)
+    const metaPath = path.join(metaDir, `${id}.json`)
 
     try {
       const stSrc = fs.statSync(src)
       if (fs.existsSync(dest) && process.env.SKIP_THUMB_FORCE !== '1') {
         const stDest = fs.statSync(dest)
         if (stDest.mtimeMs >= stSrc.mtimeMs) {
+          if (await writeBlurHashToMeta(metaPath, dest)) blurUpdated += 1
           skipped += 1
           continue
         }
@@ -83,11 +101,13 @@ async function main() {
       .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
       .toFile(dest)
 
+    if (await writeBlurHashToMeta(metaPath, dest)) blurUpdated += 1
+
     wrote += 1
   }
 
   console.log(
-    `[gallery-thumbs] Done. Wrote ${wrote}, skipped up-to-date ${skipped}, max width ${MAX_WIDTH}px → ${path.relative(root, thumbsDir)}`,
+    `[gallery-thumbs] Done. Wrote ${wrote}, skipped up-to-date ${skipped}, blurHash updated ${blurUpdated}, max width ${MAX_WIDTH}px → ${path.relative(root, thumbsDir)}`,
   )
 }
 

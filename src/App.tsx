@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CollectionViewBar } from './components/CollectionViewBar'
 import { CollectionsModal } from './components/CollectionsModal'
+import { CollectionsStrip } from './components/CollectionsStrip'
 import { Gallery } from './components/Gallery'
 import { GalleryFiltersPanel } from './components/GalleryFiltersPanel'
 import { GalleryToolbar } from './components/GalleryToolbar'
@@ -22,10 +23,20 @@ import {
 } from './lib/gallerySort'
 import {
   collectionPageUrl,
-  parseCollectionSlugFromLocation,
   setCollectionSlugInLocation,
 } from './lib/collectionDeepLink'
-import { entryMatchesCollectionSlug } from './lib/galleryCollections'
+import {
+  parseGalleryUrlFilters,
+  parseGalleryUrlState,
+  writeGalleryUrlState,
+} from './lib/galleryUrlState'
+import { lockBodyScroll } from './lib/bodyScrollLock'
+import { clearPhotoFromLocation } from './lib/photoDeepLink'
+import { dispatchGalleryHomeNav } from './lib/galleryHomeNav'
+import {
+  entryMatchesCollectionSlug,
+  sortCollectionsByRecency,
+} from './lib/galleryCollections'
 import { galleryEntryMatchesQuery } from './lib/gallerySearch'
 import './App.css'
 
@@ -36,13 +47,23 @@ export default function App() {
   const tagsLabel = site.tagsLabel ?? 'Tags'
   const collectionsLabel = site.eventsLabel ?? 'Collections'
   const [activeCollectionSlug, setActiveCollectionSlug] = useState<string | null>(
-    null,
+    () =>
+      typeof window !== 'undefined'
+        ? parseGalleryUrlState().collection
+        : null,
   )
-  const [selectedLocation, setSelectedLocation] = useState<string | null>(null)
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? parseGalleryUrlFilters().location : null,
+  )
+  const [selectedTags, setSelectedTags] = useState<string[]>(() =>
+    typeof window !== 'undefined' ? parseGalleryUrlFilters().tags : [],
+  )
   const [sortOrder, setSortOrder] =
     useState<GallerySortOrder>(DEFAULT_GALLERY_SORT_ORDER)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(() =>
+    typeof window !== 'undefined' ? parseGalleryUrlFilters().searchQuery : '',
+  )
+  const urlSyncFromBrowserRef = useRef(false)
   const [locationsOpen, setLocationsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [collectionLinkCopied, setCollectionLinkCopied] = useState(false)
@@ -73,6 +94,11 @@ export default function App() {
         ? (collections.find((c) => c.slug === activeCollectionSlug) ?? null)
         : null,
     [activeCollectionSlug, collections],
+  )
+
+  const recentCollections = useMemo(
+    () => sortCollectionsByRecency(collections, entriesWithMeta),
+    [collections, entriesWithMeta],
   )
 
   const setLocationsOpenExclusive = useCallback((open: boolean) => {
@@ -114,16 +140,35 @@ export default function App() {
     closeFiltersPanel()
   }, [clearFacetFilters, closeFiltersPanel, exitCollection])
 
+  const goHome = useCallback(() => {
+    clearAllFilters()
+    clearPhotoFromLocation()
+    setCollectionsModalOpen(false)
+    dispatchGalleryHomeNav()
+    document.getElementById('gallery-main')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }, [clearAllFilters])
+
   useEffect(() => {
     const syncFromLocation = () => {
-      const slug = parseCollectionSlugFromLocation()
+      urlSyncFromBrowserRef.current = true
+      const state = parseGalleryUrlState()
+      const slug = state.collection
       if (!slug) {
         setActiveCollectionSlug(null)
-        return
+      } else {
+        const valid = collections.some((c) => c.slug === slug)
+        setActiveCollectionSlug(valid ? slug : null)
+        if (!valid) setCollectionSlugInLocation(null)
       }
-      const valid = collections.some((c) => c.slug === slug)
-      setActiveCollectionSlug(valid ? slug : null)
-      if (!valid) setCollectionSlugInLocation(null)
+      setSelectedLocation(state.location)
+      setSelectedTags(state.tags)
+      setSearchQuery(state.searchQuery)
+      queueMicrotask(() => {
+        urlSyncFromBrowserRef.current = false
+      })
     }
     syncFromLocation()
     window.addEventListener('popstate', syncFromLocation)
@@ -182,6 +227,21 @@ export default function App() {
     () => selectedTags.filter((t) => availableTags.includes(t)),
     [selectedTags, availableTags],
   )
+
+  useEffect(() => {
+    if (urlSyncFromBrowserRef.current) return
+    writeGalleryUrlState({
+      collection: activeCollectionSlug,
+      location: selectedLocation,
+      tags: effectiveSelectedTags,
+      searchQuery: searchQuery.trim(),
+    })
+  }, [
+    activeCollectionSlug,
+    selectedLocation,
+    effectiveSelectedTags,
+    searchQuery,
+  ])
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags((prev) =>
@@ -289,7 +349,14 @@ export default function App() {
 
   useEffect(() => {
     document.body.classList.toggle('gallery-filters-panel-open', filtersPanelOpen)
-    return () => document.body.classList.remove('gallery-filters-panel-open')
+    if (!filtersPanelOpen) return () => {
+      document.body.classList.remove('gallery-filters-panel-open')
+    }
+    const unlockScroll = lockBodyScroll()
+    return () => {
+      unlockScroll()
+      document.body.classList.remove('gallery-filters-panel-open')
+    }
   }, [filtersPanelOpen])
 
   return (
@@ -304,7 +371,7 @@ export default function App() {
       ) : null}
 
       <div className="portfolio-hero">
-        <PortfolioIntro config={site} />
+        <PortfolioIntro config={site} onHomeClick={goHome} />
         {entriesWithMeta.length > 0 ? (
           <section
             className="gallery-toolbar-section"
@@ -340,6 +407,19 @@ export default function App() {
             />
           </section>
         ) : null}
+        {entriesWithMeta.length > 0 &&
+        collections.length > 0 &&
+        activeCollectionSlug == null ? (
+          <CollectionsStrip
+            label={collectionsLabel}
+            collections={recentCollections}
+            onSelect={openCollection}
+            onOpenAll={() => {
+              warmupCollectionCovers()
+              setCollectionsModalOpen(true)
+            }}
+          />
+        ) : null}
       </div>
 
       <main id="gallery-main" className="portfolio-main" tabIndex={-1}>
@@ -359,6 +439,7 @@ export default function App() {
             items={filtered}
             allItems={annotated}
             siteTitle={site.title}
+            collectionSlug={activeCollectionSlug}
             emptyHint={galleryEmptyHint}
             emptyMessages={emptyMessages}
             selectedTags={effectiveSelectedTags}

@@ -47,6 +47,15 @@ export function equipmentSlugFromLabel(label: string): string | null {
   return slug && isValidEquipmentSlug(slug) ? slug : null
 }
 
+/** Prefer registry slug in sidecars when the label slugifies cleanly. */
+export function normalizeEquipmentField(raw: string | null): string | null {
+  if (!raw?.trim()) return null
+  const t = raw.trim()
+  if (isValidEquipmentSlug(t)) return t.toLowerCase()
+  const slug = equipmentSlugFromLabel(t)
+  return slug ?? t
+}
+
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null && !Array.isArray(x)
 }

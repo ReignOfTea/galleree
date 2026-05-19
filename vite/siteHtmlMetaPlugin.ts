@@ -1,41 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Plugin } from 'vite'
-
-const IMAGE_EXT = new Set([
-  '.jpg',
-  '.jpeg',
-  '.png',
-  '.webp',
-  '.avif',
-  '.gif',
-])
-
-function readFirstGalleryFile(root: string): string | null {
-  const galleryDir = path.join(root, 'public', 'gallery')
-  if (!fs.existsSync(galleryDir)) return null
-
-  const names = fs
-    .readdirSync(galleryDir)
-    .filter((name) => IMAGE_EXT.has(path.extname(name).toLowerCase()))
-    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-
-  return names[0] ?? null
-}
+import {
+  buildAtomFeed,
+  buildSitemapXml,
+  loadGalleryBuildExtras,
+} from './galleryBuildExtras'
+import { pickOgImageRel } from './ogImagePick'
 
 function escapeHtmlAttr(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
-}
-
-function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
 
 function normalizeSiteUrl(raw: string): string | null {
@@ -69,6 +46,84 @@ function absolutePublicUrl(
     return `${root.origin}/${rel}`
   }
   return `${root.origin}/${baseSeg}/${rel}`
+}
+
+function readSiteJson(root: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(
+      fs.readFileSync(path.join(root, 'public', 'site.json'), 'utf8'),
+    ) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function siteUrlFromSiteJson(root: string): string | null {
+  const site = readSiteJson(root)
+  if (!site || typeof site.siteUrl !== 'string') return null
+  return normalizeSiteUrl(site.siteUrl)
+}
+
+function siteCopyFromJson(root: string): {
+  title: string
+  description: string
+} {
+  const site = readSiteJson(root)
+  let title = 'Portfolio'
+  if (site && typeof site.title === 'string' && site.title.trim()) {
+    title = site.title.trim()
+  }
+  const description = site
+    ? metaDescFromSite(site, title, 300)
+    : 'Photography portfolio'
+  return { title, description }
+}
+
+function buildGalleryExtrasArtifacts(
+  root: string,
+  siteUrl: string,
+  viteBase: string,
+): {
+  robotsTxt: string
+  sitemapXml: string
+  feedXml: string
+  feedLinkHtml: string
+} {
+  const abs = (rel: string) => absolutePublicUrl(siteUrl, viteBase, rel)
+  const extras = loadGalleryBuildExtras(root)
+  const { title, description } = siteCopyFromJson(root)
+
+  const rawHome = absolutePublicUrl(siteUrl, viteBase, '')
+  const pageUrl = rawHome.endsWith('/') ? rawHome : `${rawHome}/`
+  const sitemapUrl = new URL('sitemap.xml', pageUrl).href
+  const robotsLines = ['User-agent: *', 'Allow: /', '', `Sitemap: ${sitemapUrl}`]
+
+  const feedLinkHtml = `<link rel="alternate" type="application/atom+xml" title="${escapeHtmlAttr(title)} feed" href="${escapeHtmlAttr(abs('feed.xml'))}" />`
+
+  return {
+    robotsTxt: `${robotsLines.join('\n')}\n`,
+    sitemapXml: buildSitemapXml(siteUrl, viteBase, extras, abs),
+    feedXml: buildAtomFeed(
+      title,
+      siteUrl,
+      viteBase,
+      description,
+      extras.feedItems,
+      abs,
+    ),
+    feedLinkHtml,
+  }
+}
+
+/** Path under Vite base, e.g. `/feed.xml` when base is `/`. */
+function pathUnderViteBase(pathname: string, viteBase: string): string {
+  const basePath = viteBase.replace(/\/$/, '') || ''
+  let rel = pathname
+  if (basePath && rel.startsWith(basePath)) {
+    rel = rel.slice(basePath.length) || '/'
+  }
+  if (!rel.startsWith('/')) rel = `/${rel}`
+  return rel
 }
 
 function metaDescFromSite(site: Record<string, unknown>, title: string, max: number): string {
@@ -124,17 +179,7 @@ export function siteHtmlMetaPlugin(options: SiteHtmlMetaPluginOptions): Plugin {
           siteUrl = normalizeSiteUrl(site.siteUrl)
         }
 
-        if (typeof site.ogImage === 'string' && site.ogImage.trim()) {
-          ogImageRel = site.ogImage.trim().replace(/^\/+/, '')
-        } else if (
-          typeof site.logo === 'string' &&
-          site.logo.trim()
-        ) {
-          ogImageRel = site.logo.trim().replace(/^\/+/, '')
-        } else {
-          const first = readFirstGalleryFile(root)
-          if (first) ogImageRel = `gallery/${first}`
-        }
+        ogImageRel = pickOgImageRel(root, site)
       } catch {
         /* defaults */
       }
@@ -184,6 +229,12 @@ export function siteHtmlMetaPlugin(options: SiteHtmlMetaPluginOptions): Plugin {
         extra += `\n    <meta name="twitter:description" content="${escapeHtmlAttr(description)}" />`
       }
 
+      const feedPath =
+        viteBase === '/' ? '/feed.xml' : `${viteBase.replace(/\/?$/, '')}/feed.xml`
+      if (!extra.includes('application/atom+xml')) {
+        extra += `\n    <link rel="alternate" type="application/atom+xml" title="${escapeHtmlAttr(title)} feed" href="${escapeHtmlAttr(feedPath)}" />`
+      }
+
       const htmlLang = escapeHtmlAttr(lang)
       const htmlOut = html.replace(/<html lang="[^"]*"/, `<html lang="${htmlLang}"`)
 
@@ -195,45 +246,75 @@ export function siteHtmlMetaPlugin(options: SiteHtmlMetaPluginOptions): Plugin {
         )
     },
 
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url || !root) return next()
+        try {
+          const pathname = new URL(req.url, 'http://local').pathname
+          const rel = pathUnderViteBase(pathname, viteBase)
+          if (rel !== '/feed.xml' && rel !== '/sitemap.xml' && rel !== '/robots.txt') {
+            return next()
+          }
+
+          const host = req.headers.host
+          if (!host) return next()
+
+          const siteUrl =
+            siteUrlFromSiteJson(root) ?? normalizeSiteUrl(`http://${host}`)
+          if (!siteUrl) return next()
+
+          const artifacts = buildGalleryExtrasArtifacts(root, siteUrl, viteBase)
+
+          if (rel === '/feed.xml') {
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/atom+xml; charset=utf-8')
+            res.setHeader('Cache-Control', 'no-cache')
+            res.end(artifacts.feedXml)
+            return
+          }
+          if (rel === '/sitemap.xml') {
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/xml; charset=utf-8')
+            res.setHeader('Cache-Control', 'no-cache')
+            res.end(artifacts.sitemapXml)
+            return
+          }
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+          res.setHeader('Cache-Control', 'no-cache')
+          res.end(artifacts.robotsTxt)
+        } catch {
+          next()
+        }
+      })
+    },
+
     writeBundle(bundleOptions) {
       const outDir = bundleOptions.dir
       if (!outDir || !root) return
 
-      let siteUrl: string | null = null
-      try {
-        const raw = fs.readFileSync(path.join(root, 'public', 'site.json'), 'utf8')
-        const site = JSON.parse(raw) as Record<string, unknown>
-        if (typeof site.siteUrl === 'string') {
-          siteUrl = normalizeSiteUrl(site.siteUrl)
+      const siteUrl = siteUrlFromSiteJson(root)
+      if (!siteUrl) {
+        fs.writeFileSync(
+          path.join(outDir, 'robots.txt'),
+          'User-agent: *\nAllow: /\n',
+          'utf8',
+        )
+        return
+      }
+
+      const artifacts = buildGalleryExtrasArtifacts(root, siteUrl, viteBase)
+      fs.writeFileSync(path.join(outDir, 'robots.txt'), artifacts.robotsTxt, 'utf8')
+      fs.writeFileSync(path.join(outDir, 'sitemap.xml'), artifacts.sitemapXml, 'utf8')
+      fs.writeFileSync(path.join(outDir, 'feed.xml'), artifacts.feedXml, 'utf8')
+
+      const indexPath = path.join(outDir, 'index.html')
+      if (fs.existsSync(indexPath)) {
+        let html = fs.readFileSync(indexPath, 'utf8')
+        if (!html.includes('application/atom+xml')) {
+          html = html.replace('</head>', `    ${artifacts.feedLinkHtml}\n  </head>`)
+          fs.writeFileSync(indexPath, html, 'utf8')
         }
-      } catch {
-        /* ignore */
-      }
-
-      const robotsLines = ['User-agent: *', 'Allow: /']
-      if (siteUrl) {
-        const rawHome = absolutePublicUrl(siteUrl, viteBase, '')
-        const pageUrl = rawHome.endsWith('/') ? rawHome : `${rawHome}/`
-        const sitemapUrl = new URL('sitemap.xml', pageUrl).href
-        robotsLines.push('', `Sitemap: ${sitemapUrl}`)
-      }
-      fs.writeFileSync(path.join(outDir, 'robots.txt'), `${robotsLines.join('\n')}\n`, 'utf8')
-
-      if (siteUrl) {
-        const rawHome = absolutePublicUrl(siteUrl, viteBase, '')
-        const loc = rawHome.endsWith('/') ? rawHome : `${rawHome}/`
-        const today = new Date().toISOString().slice(0, 10)
-        const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${escapeXml(loc)}</loc>
-    <lastmod>${today}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
-  </url>
-</urlset>
-`
-        fs.writeFileSync(path.join(outDir, 'sitemap.xml'), sitemap, 'utf8')
       }
     },
   }

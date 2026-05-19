@@ -33,6 +33,11 @@
     "hidden": { "type": "boolean" },
     "sortOrder": { "type": "number" },
     "copyright": { "type": "string", "maxLength": 200 },
-    "uploadedAt": { "type": "string", "format": "date-time" }
+    "uploadedAt": { "type": "string", "format": "date-time" },
+    "blurHash": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 128
+    }
   }
 }

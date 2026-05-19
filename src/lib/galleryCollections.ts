@@ -93,3 +93,23 @@ export function buildGalleryCollections(
     .filter((c) => c.imageCount > 0)
     .sort((a, b) => a.title.localeCompare(b.title))
 }
+
+/** Newest capture date in each collection (for homepage strip ordering). */
+export function sortCollectionsByRecency(
+  collections: GalleryCollection[],
+  entries: GalleryEntry[],
+): GalleryCollection[] {
+  const latest = new Map<string, number>()
+  for (const entry of entries) {
+    const slug = entry.collectionSlug
+    if (!slug || entry.capturedAt == null) continue
+    const prev = latest.get(slug) ?? Number.NEGATIVE_INFINITY
+    if (entry.capturedAt > prev) latest.set(slug, entry.capturedAt)
+  }
+  return [...collections].sort((a, b) => {
+    const tb = latest.get(b.slug) ?? 0
+    const ta = latest.get(a.slug) ?? 0
+    if (tb !== ta) return tb - ta
+    return a.title.localeCompare(b.title)
+  })
+}

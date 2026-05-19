@@ -24,6 +24,8 @@ export type ManifestImage = {
   shareStub?: string
   /** Full `https://…` share page URL (set at build time when `siteUrl` + `shareStub` exist) */
   sharePageUrl?: string
+  /** BlurHash placeholder (from meta or computed at build from thumb/source) */
+  blurHash?: string
 }
 
 /** Registry entry from `meta/collections/{slug}.json` */

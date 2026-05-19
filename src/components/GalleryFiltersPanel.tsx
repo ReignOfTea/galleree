@@ -1,7 +1,9 @@
+import { useRef } from 'react'
 import { CollapsibleFilterSection } from './CollapsibleFilterSection'
 import { SortOrderBar } from './SortOrderBar'
 import { TagBar } from './TagBar'
 import type { GallerySortOrder } from '../lib/gallerySort'
+import { useFocusTrap } from '../lib/focusTrap'
 
 export type GalleryFiltersPanelProps = {
   locationsLabel: string
@@ -46,8 +48,18 @@ export function GalleryFiltersPanel({
   sortOrder,
   onSortOrderChange,
 }: GalleryFiltersPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, true, { initialFocus: 'container' })
+
   return (
-    <div id="gallery-filters-panel" className="gallery-filters-panel" role="dialog" aria-label="Gallery filters">
+    <div
+      ref={panelRef}
+      id="gallery-filters-panel"
+      className="gallery-filters-panel"
+      role="dialog"
+      aria-label="Gallery filters"
+      tabIndex={-1}
+    >
       <div className="gallery-filters-panel-inner">
         <div className="gallery-filters-panel-sort gallery-toolbar-sort-mobile">
           <SortOrderBar
@@ -118,4 +130,3 @@ export function GalleryFiltersPanel({
     </div>
   )
 }
-

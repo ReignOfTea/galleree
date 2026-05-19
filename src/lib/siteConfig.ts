@@ -50,6 +50,8 @@ export type SiteConfig = {
   emptyNoSearch?: string
   /** Shown when location/tag filters return no matches. */
   emptyNoFilters?: string
+  /** Optional rights line in the footer (e.g. “All rights reserved.”). */
+  copyright?: string
 }
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
@@ -183,6 +185,11 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
       ? raw.emptyNoFilters.trim()
       : undefined
 
+  const copyright =
+    typeof raw.copyright === 'string' && raw.copyright.trim()
+      ? raw.copyright.trim()
+      : undefined
+
   const social: SocialLink[] = []
   if (Array.isArray(raw.social)) {
     for (const item of raw.social) {
@@ -214,6 +221,7 @@ export function normalizeSiteConfig(raw: unknown): SiteConfig {
     ...(emptyNoImages ? { emptyNoImages } : {}),
     ...(emptyNoSearch ? { emptyNoSearch } : {}),
     ...(emptyNoFilters ? { emptyNoFilters } : {}),
+    ...(copyright ? { copyright } : {}),
   }
 }
 
@@ -259,4 +267,10 @@ export function siteJsonHref(): string {
   const base = import.meta.env.BASE_URL
   const normalized = base.endsWith('/') ? base : `${base}/`
   return `${normalized}site.json`
+}
+
+export function feedXmlHref(): string {
+  const base = import.meta.env.BASE_URL
+  const normalized = base.endsWith('/') ? base : `${base}/`
+  return `${normalized}feed.xml`
 }

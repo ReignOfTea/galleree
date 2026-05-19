@@ -101,6 +101,74 @@ select {
   white-space: nowrap;
 }
 
+.registry-field-block {
+  margin-bottom: 12px;
+}
+
+.registry-field-block .field-with-action {
+  margin-bottom: 0;
+}
+
+.collection-cover-option {
+  margin: 0.35rem 0 0;
+  padding-left: 0.1rem;
+}
+
+.collection-cover-option__hint {
+  margin: 0.25rem 0 0 1.55rem;
+  font-size: 0.8rem;
+}
+
+.tags-input {
+  position: relative;
+}
+
+.tags-input__field {
+  width: 100%;
+}
+
+.tags-input__suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: 11rem;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid #c9d3df;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(15, 20, 25, 0.12);
+}
+
+.tags-input__option {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.4rem 0.65rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  color: #0f1419;
+  cursor: pointer;
+}
+
+.tags-input__option:hover,
+.tags-input__option-active {
+  background: #e8f0ff;
+  color: #153a7a;
+}
+
+.tags-input__match {
+  font-weight: 650;
+}
+
 .registry-project-hint {
   margin: 10px 0 0;
 }
@@ -233,7 +301,9 @@ select {
   gap: 6px;
 }
 
-input:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: 2px solid #3b6cff33;
   border-color: #3b6cff;
 }
@@ -473,10 +543,6 @@ code.warn {
   width: 100%;
   min-height: 3.5rem;
   resize: vertical;
-  font: inherit;
-  padding: 0.45rem 0.55rem;
-  border-radius: 6px;
-  border: 1px solid var(--border, #ccc);
 }
 
 .photo-panel__more {
@@ -538,6 +604,7 @@ code.warn {
   :root {
     color: #e8eef5;
     background: #1a1f26;
+    color-scheme: dark;
   }
 
   .card {
@@ -545,10 +612,35 @@ code.warn {
     border-color: #2f3844;
   }
 
-  input {
-    background: #1a1f26;
+  input,
+  select,
+  textarea {
+    background: #2a323d;
     border-color: #3a4553;
     color: #e8eef5;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: 2px solid #3b6cff55;
+    border-color: #5a82ff;
+  }
+
+  .tags-input__suggestions {
+    background: #222831;
+    border-color: #3a4553;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  .tags-input__option {
+    color: #e8eef5;
+  }
+
+  .tags-input__option:hover,
+  .tags-input__option-active {
+    background: #243047;
+    color: #dbe8ff;
   }
 
   .lede,

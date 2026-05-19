@@ -16,7 +16,12 @@ import { isAllowedImagePath, normalizeExtensionFromPath } from "./imageExtension
 import { matchEquipmentSlug } from "./matchRegistry"
 import { RegistryCreateModal } from "./components/RegistryCreateModal"
 import { PhotoPanels } from "./PhotoPanels"
-import { fetchGalleryImages } from "./registryService"
+import {
+  fetchGalleryImages,
+  fetchGalleryTags,
+  setCollectionCoverPhoto,
+} from "./registryService"
+import { parseTagList } from "./lib/tagSuggest"
 import {
   resolveCameraValue,
   resolveCollectionSlug,
@@ -110,6 +115,7 @@ function newRowFromPath(path: string): UploadRow {
     lensSelect: SELECT_NONE,
     lensCustom: "",
     collectionSelect: SELECT_NONE,
+    collectionSetCover: false,
     alt: "",
     hidden: false,
     sortOrder: "",
@@ -139,6 +145,7 @@ export default function App() {
   })
   const [registryModal, setRegistryModal] = useState<RegistryModalRequest | null>(null)
   const [galleryImages, setGalleryImages] = useState<GalleryImageRef[]>([])
+  const [galleryTags, setGalleryTags] = useState<string[]>([])
   const rowsRef = useRef(rows)
   rowsRef.current = rows
   const [commitMessage, setCommitMessage] = useState("")
@@ -183,6 +190,24 @@ export default function App() {
     }
   }, [config])
 
+  const loadGalleryTags = useCallback(async () => {
+    if (!config) return
+    try {
+      setGalleryTags(await fetchGalleryTags())
+    } catch {
+      setGalleryTags([])
+    }
+  }, [config])
+
+  const knownTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of galleryTags) set.add(t)
+    for (const row of rows) {
+      for (const t of parseTagList(row.tags)) set.add(t)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+  }, [galleryTags, rows])
+
   const coverCandidates = useMemo((): CoverCandidate[] => {
     const fromUpload = rows
       .filter((r) => r.destId && r.title.trim())
@@ -224,8 +249,11 @@ export default function App() {
   }, [load])
 
   useEffect(() => {
-    if (config) void refreshRegistries()
-  }, [config, refreshRegistries])
+    if (config) {
+      void refreshRegistries()
+      void loadGalleryTags()
+    }
+  }, [config, refreshRegistries, loadGalleryTags])
 
   const needsSetup = config === null
 
@@ -316,6 +344,7 @@ export default function App() {
         setStatus(msg)
       }
       await refreshRegistries()
+      await loadGalleryTags()
     } catch (e) {
       const err = String(e)
       if (context === "after-save") {
@@ -327,7 +356,7 @@ export default function App() {
       repoPrepareLock.current = false
       setRepoPreparing(false)
     }
-  }, [refreshRegistries])
+  }, [refreshRegistries, loadGalleryTags])
 
   const saveSettings = async () => {
     setBusy(true)
@@ -501,6 +530,15 @@ export default function App() {
       setRows(ready)
       trace(`Planned files:\n${ready.map((r) => `${r.destFilename}  <=  ${r.sourcePath}`).join("\n")}`)
 
+      const coverMissingId = ready.find(
+        (r) => r.collectionSetCover && r.collectionSelect !== SELECT_NONE && !r.destId,
+      )
+      if (coverMissingId) {
+        throw new Error(
+          "“Make cover photo” needs a title on that photo so it has a gallery id.",
+        )
+      }
+
       setStatus("Copying photos into the gallery…")
       await appInvoke("stage_gallery_files", {
         items: ready.map((r) => ({
@@ -512,6 +550,25 @@ export default function App() {
         })),
       })
       trace("Copy into public/gallery completed (stage_gallery_files OK).")
+
+      const coverBySlug = new Map<string, string>()
+      for (const r of ready) {
+        if (
+          r.collectionSetCover &&
+          r.collectionSelect !== SELECT_NONE &&
+          r.destId
+        ) {
+          coverBySlug.set(r.collectionSelect, r.destId)
+        }
+      }
+      if (coverBySlug.size > 0) {
+        setStatus("Updating collection cover photos…")
+        for (const [slug, coverId] of coverBySlug) {
+          await setCollectionCoverPhoto(slug, coverId, registries)
+          trace(`Collection cover: ${slug} → ${coverId}`)
+        }
+      }
+
       setStatus("Publishing…")
       const msg = await appInvoke<string>("git_commit_and_push", {
         message: commitMessage.trim() || "Add photos",
@@ -686,6 +743,7 @@ export default function App() {
               <PhotoPanels
                 rows={rows}
                 registries={registries}
+                knownTags={knownTags}
                 updateRow={updateRow}
                 getDestPreview={getDestPreview}
                 onOpenRegistryCreate={setRegistryModal}

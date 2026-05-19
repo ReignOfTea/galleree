@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useFocusTrap } from '../lib/focusTrap'
 import type {
   CameraEquipmentDetail,
   ResolvedEquipment,
@@ -43,6 +44,9 @@ function EquipmentBlock({
 }
 
 export function EquipmentDetailModal({ camera, lens, onClose }: Props) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, true, { initialFocus: 'first' })
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -64,7 +68,12 @@ export function EquipmentDetailModal({ camera, lens, onClose }: Props) {
         aria-label="Close equipment details"
         onClick={onClose}
       />
-      <div className="equipment-modal-panel" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={panelRef}
+        className="equipment-modal-panel"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         <header className="equipment-modal-header">
           <h2 id="equipment-modal-title" className="equipment-modal-title">
             {camera.name}
