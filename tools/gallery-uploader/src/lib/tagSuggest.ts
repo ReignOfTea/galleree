@@ -1,3 +1,5 @@
+import { normalizeGalleryTag } from "@galleree/gallery-tags"
+
 export function parseTagList(value: string): string[] {
   return value
     .split(",")
@@ -55,4 +57,19 @@ export function filterTagSuggestions(
     if (out.length >= limit) break
   }
   return out
+}
+
+/** Known tags for suggestions — canonical display form, deduped. */
+export function normalizeKnownTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of tags) {
+    const n = normalizeGalleryTag(raw)
+    if (!n) continue
+    const key = n.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(n)
+  }
+  return out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
 }

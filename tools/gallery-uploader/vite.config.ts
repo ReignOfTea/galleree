@@ -23,6 +23,8 @@ export default defineConfig(async () => ({
         repoRoot,
         "src/lib/galleryEquipmentMeta.ts",
       ),
+      "@galleree/gallery-tags": path.join(repoRoot, "src/lib/galleryTags.ts"),
+      "@galleree/site-config": path.join(repoRoot, "src/lib/siteConfig.ts"),
     },
   },
 

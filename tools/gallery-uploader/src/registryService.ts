@@ -11,6 +11,7 @@ import {
   serializeGalleryEquipmentMeta,
 } from "@galleree/gallery-equipment"
 import { appInvoke } from "./tauriBridge"
+import { normalizeKnownTags } from "./lib/tagSuggest"
 import type { GalleryRegistries } from "./registryTypes"
 
 async function writeRegistryJson(relativePath: string, json: string): Promise<void> {
@@ -154,5 +155,6 @@ export async function fetchGalleryImages(): Promise<
 }
 
 export async function fetchGalleryTags(): Promise<string[]> {
-  return appInvoke("list_gallery_tags")
+  const raw = await appInvoke<string[]>("list_gallery_tags")
+  return normalizeKnownTags(raw)
 }

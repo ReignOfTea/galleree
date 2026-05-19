@@ -752,3 +752,34 @@ code.warn {
     border-color: #3a4553;
   }
 }
+
+.site-config-details {
+  margin: 0.75rem 0 0;
+}
+
+.site-config-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.site-config-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #d8dee8;
+}
+
+.site-config-panel__lede {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.photo-panel__badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #3730a3;
+}

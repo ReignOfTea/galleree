@@ -2,6 +2,8 @@
 
 Tauri + React + TypeScript + Vite. Bulk-add photos to a git checkout of the site repo (`public/gallery/`), then commit and push.
 
+On upload, the app writes each image, `meta/{id}.json`, and `thumbs/{id}.jpg` (720px JPEG, same as `npm run generate-gallery-thumbs`). EXIF description, capture time, camera, and lens are prefilled when available. You can edit existing gallery photos (metadata only) and edit `public/site.json` from **Site settings**; both are included in the publish step when changed.
+
 Gallery folder layout, sidecar fields, and equipment registries are documented in the [repository README](../../README.md#gallery-layout).
 
 ## GitHub personal access token (clone & push)

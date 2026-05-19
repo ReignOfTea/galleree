@@ -135,7 +135,7 @@ To commit photos and sidecars: `git add -f public/gallery/` (or use the desktop 
 
 ## Desktop uploader
 
-`tools/gallery-uploader/` is a Tauri app for bulk-adding images to a repo checkout, writing sidecars, generating thumbs, and pushing via Git. See [tools/gallery-uploader/README.md](tools/gallery-uploader/README.md) for tokens and releases.
+`tools/gallery-uploader/` is a Tauri app for bulk-adding images to a repo checkout, writing sidecars and 720px JPEG thumbs, editing existing metadata, updating `site.json`, and pushing via Git. See [tools/gallery-uploader/README.md](tools/gallery-uploader/README.md) for tokens and releases.
 
 ## Deployment
 

@@ -33,6 +33,7 @@ pub struct ImageHints {
     pub date_time_original_iso: Option<String>,
     pub make: Option<String>,
     pub model: Option<String>,
+    pub lens_model: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +42,31 @@ pub struct StageItem {
     pub source_path: String,
     pub dest_filename: String,
     pub meta_json: Option<String>,
+    /// When true, only writes meta/thumb; image must already exist at dest.
+    #[serde(default)]
+    pub skip_image_copy: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GalleryPhotoEdit {
+    pub id: String,
+    pub dest_filename: String,
+    pub image_path: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+    pub location: Option<String>,
+    pub captured_on: Option<String>,
+    pub captured_at: Option<String>,
+    pub collection_slug: Option<String>,
+    pub camera: Option<String>,
+    pub lens: Option<String>,
+    pub alt: Option<String>,
+    pub hidden: bool,
+    pub sort_order: Option<f64>,
+    pub copyright: Option<String>,
+    pub uploaded_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -358,6 +384,7 @@ fn read_image_hints(path: String) -> Result<ImageHints, String> {
                     date_time_original_iso: None,
                     make: None,
                     model: None,
+                    lens_model: None,
                 });
             }
         },
@@ -367,6 +394,7 @@ fn read_image_hints(path: String) -> Result<ImageHints, String> {
                 date_time_original_iso: None,
                 make: None,
                 model: None,
+                lens_model: None,
             });
         }
     };
@@ -375,6 +403,7 @@ fn read_image_hints(path: String) -> Result<ImageHints, String> {
 
     let make = field_ascii(&exif, Tag::Make);
     let model = field_ascii(&exif, Tag::Model);
+    let lens_model = field_ascii(&exif, Tag::LensModel);
 
     let date_time_original_iso = exif
         .get_field(Tag::DateTimeOriginal, In::PRIMARY)
@@ -396,6 +425,7 @@ fn read_image_hints(path: String) -> Result<ImageHints, String> {
         date_time_original_iso,
         make,
         model,
+        lens_model,
     })
 }
 
@@ -487,6 +517,29 @@ const LARGE_FILE_BYTES: u64 = SAFE_MAX_STAGED_BYTES;
 const TARGET_STAGED_BYTES: u64 = SAFE_MAX_STAGED_BYTES;
 
 const MIN_LONG_EDGE: u32 = 960;
+
+const THUMB_MAX_WIDTH: u32 = 720;
+const THUMB_JPEG_QUALITY: u8 = 82;
+
+fn write_gallery_thumb(source: &Path, thumb_path: &Path) -> Result<(), String> {
+    let img = image::open(source).map_err(|e| e.to_string())?;
+    let thumb = resize_to_max_side(&img, THUMB_MAX_WIDTH);
+    let rgb = thumb.to_rgb8();
+    let mut buf = Vec::new();
+    let enc = JpegEncoder::new_with_quality(&mut buf, THUMB_JPEG_QUALITY);
+    enc.write_image(
+        rgb.as_raw(),
+        rgb.width(),
+        rgb.height(),
+        ExtendedColorType::Rgb8,
+    )
+    .map_err(|e| e.to_string())?;
+    if let Some(parent) = thumb_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(thumb_path, &buf).map_err(|e| e.to_string())?;
+    Ok(())
+}
 
 fn blur_hash_from_image(path: &Path) -> Option<String> {
     let img = image::open(path).ok()?;
@@ -762,6 +815,151 @@ fn list_gallery_tags(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+fn find_gallery_image_file(gallery_dir: &Path, id: &str) -> Option<PathBuf> {
+    const EXT: &[&str] = &["jpg", "jpeg", "png", "webp", "avif", "gif"];
+    for ext in EXT {
+        let p = gallery_dir.join(format!("{id}.{ext}"));
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn get_gallery_photo_for_edit(app: tauri::AppHandle, id: String) -> Result<GalleryPhotoEdit, String> {
+    let id = id.trim().to_lowercase();
+    if !is_gallery_image_id(&id) {
+        return Err("invalid gallery id".into());
+    }
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let image_path = find_gallery_image_file(&gallery_dir, &id)
+        .ok_or_else(|| format!("no image file found for {id}"))?;
+    let meta_path = gallery_dir.join("meta").join(format!("{id}.json"));
+    if !meta_path.is_file() {
+        return Err(format!("meta/{id}.json not found"));
+    }
+    let raw = std::fs::read_to_string(&meta_path).map_err(|e| e.to_string())?;
+    let v: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+
+    let title = v
+        .get("title")
+        .and_then(|x| x.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| id.clone());
+
+    let tags: Vec<String> = v
+        .get("tags")
+        .and_then(|x| x.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(GalleryPhotoEdit {
+        id: id.clone(),
+        dest_filename: image_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("{id}.jpg")),
+        image_path: image_path.to_string_lossy().into_owned(),
+        title,
+        description: v
+            .get("description")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        tags,
+        location: v
+            .get("location")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        captured_on: v
+            .get("capturedOn")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        captured_at: v
+            .get("capturedAt")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        collection_slug: v
+            .get("collectionSlug")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty()),
+        camera: v
+            .get("camera")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        lens: v
+            .get("lens")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        alt: v
+            .get("alt")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        hidden: v.get("hidden").and_then(|x| x.as_bool()).unwrap_or(false),
+        sort_order: v.get("sortOrder").and_then(|x| x.as_f64()),
+        copyright: v
+            .get("copyright")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        uploaded_at: v
+            .get("uploadedAt")
+            .and_then(|x| x.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+    })
+}
+
+fn site_json_path(workdir: &Path) -> PathBuf {
+    workdir.join("public").join("site.json")
+}
+
+#[tauri::command]
+fn read_site_json(app: tauri::AppHandle) -> Result<String, String> {
+    let cfg = load_config(app)?.ok_or("not configured")?;
+    let path = site_json_path(&PathBuf::from(&cfg.workdir));
+    if !path.is_file() {
+        return Ok("{}".into());
+    }
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_site_json(app: tauri::AppHandle, json: String) -> Result<(), String> {
+    if json.len() > 256 * 1024 {
+        return Err("site.json is too large (max 256 KiB)".into());
+    }
+    let _: serde_json::Value =
+        serde_json::from_str(&json).map_err(|e| format!("invalid JSON: {e}"))?;
+    let cfg = load_config(app)?.ok_or("not configured")?;
+    let path = site_json_path(&PathBuf::from(&cfg.workdir));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let pretty = serde_json::to_string_pretty(
+        &serde_json::from_str::<serde_json::Value>(&json).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    std::fs::write(&path, format!("{pretty}\n")).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 fn write_registry_asset(
     app: tauri::AppHandle,
@@ -828,7 +1026,16 @@ fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<V
             return Err(format!("source not found: {}", it.source_path));
         }
         let dest = gallery_dir.join(&it.dest_filename);
-        copy_or_shrink_for_git(&src, &dest, &it.dest_filename)?;
+        if it.skip_image_copy {
+            if !dest.is_file() {
+                return Err(format!(
+                    "gallery image missing for {} (metadata-only update)",
+                    it.dest_filename
+                ));
+            }
+        } else {
+            copy_or_shrink_for_git(&src, &dest, &it.dest_filename)?;
+        }
 
         if let Some(json) = it.meta_json.as_ref() {
             if json.len() > 64 * 1024 {
@@ -857,6 +1064,10 @@ fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<V
             let enriched = meta_json_with_blur_hash(json, &dest);
             std::fs::write(&meta_path, enriched.as_bytes())
                 .map_err(|e| format!("write meta/{stem}.json: {e}"))?;
+
+            let thumbs_dir = gallery_dir.join("thumbs");
+            let thumb_path = thumbs_dir.join(format!("{stem}.jpg"));
+            write_gallery_thumb(&dest, &thumb_path)?;
         }
 
         copied.push(it.dest_filename);
@@ -883,23 +1094,26 @@ fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String,
     output_status(&mut pull)?;
 
     // Gallery images, meta, and thumbs are gitignored (see .gitignore); normal `git add` skips them.
+    let mut add_paths = vec!["public/gallery"];
+    for rel in ["public/site.json", "public/logo.svg", "public/CNAME"] {
+        if workdir.join(rel).is_file() {
+            add_paths.push(rel);
+        }
+    }
     let mut add = git_command(&workdir);
-    add.args(["add", "-f", "--", "public/gallery"]);
+    add.arg("add").arg("-f").arg("--");
+    for p in &add_paths {
+        add.arg(p);
+    }
     output_status(&mut add)?;
 
     let mut staged_names = git_command(&workdir);
-    staged_names.args([
-        "diff",
-        "--cached",
-        "--name-only",
-        "--",
-        "public/gallery",
-    ]);
+    staged_names.arg("diff").arg("--cached").arg("--name-only");
     let staged = output_status(&mut staged_names)?;
     if staged.trim().is_empty() {
         return Err(
-            "Nothing staged under public/gallery after git add -f. \
-             If you used Upload pics, the copy step may have failed, or files on disk match the last commit exactly."
+            "Nothing staged after git add -f. \
+             If you used Upload, the copy step may have failed, or files on disk match the last commit exactly."
                 .into(),
         );
     }
@@ -938,6 +1152,9 @@ pub fn run() {
             list_gallery_registries,
             list_gallery_images,
             list_gallery_tags,
+            get_gallery_photo_for_edit,
+            read_site_json,
+            write_site_json,
             write_gallery_registry_file,
             write_registry_asset,
             stage_gallery_files,

@@ -69,11 +69,16 @@ export function PhotoPanels({
               </span>
               <span className="photo-panel__summary-text">
                 <span className="photo-panel__filename">{name}</span>
+                {r.editExistingId ? (
+                  <span className="photo-panel__badge">Editing</span>
+                ) : null}
                 {titleMissing ? (
                   <span className="photo-panel__badge photo-panel__badge--warn">Title required</span>
                 ) : null}
                 {preview ? (
-                  <code className={`photo-panel__dest ${r.destExists ? "warn" : ""}`}>
+                  <code
+                    className={`photo-panel__dest ${r.destExists && !r.editExistingId ? "warn" : ""}`}
+                  >
                     {preview.file}
                   </code>
                 ) : (
@@ -129,7 +134,19 @@ export function PhotoPanels({
                   <input
                     type="date"
                     value={r.captureDate}
-                    onChange={(e) => updateRow(r.id, { captureDate: e.target.value })}
+                    onChange={(e) => {
+                      const nextDate = e.target.value
+                      const patch: { captureDate: string; captureDateTimeIso?: string } = {
+                        captureDate: nextDate,
+                      }
+                      const iso = r.captureDateTimeIso.trim()
+                      if (iso && /^\d{4}-\d{2}-\d{2}T/.test(iso) && nextDate) {
+                        patch.captureDateTimeIso = `${nextDate}T${iso.split("T")[1]}`
+                      } else if (!nextDate) {
+                        patch.captureDateTimeIso = ""
+                      }
+                      updateRow(r.id, patch)
+                    }}
                   />
                 </label>
 

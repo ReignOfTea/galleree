@@ -31,6 +31,45 @@ export type VisibleImageLayout = {
 
 type Corner = keyof AmbientColors
 
+let cachedPreferAmbientOffDefault: boolean | null = null
+
+/** Touch-first mobile / tablet, reduced motion, or modest CPU/RAM — ambient glow is costly. */
+export function prefersAmbientOffByDefault(): boolean {
+  if (cachedPreferAmbientOffDefault !== null) return cachedPreferAmbientOffDefault
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    cachedPreferAmbientOffDefault = false
+    return false
+  }
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    cachedPreferAmbientOffDefault = true
+    return true
+  }
+
+  const touchPrimary =
+    window.matchMedia('(hover: none)').matches &&
+    window.matchMedia('(pointer: coarse)').matches
+  if (touchPrimary) {
+    cachedPreferAmbientOffDefault = true
+    return true
+  }
+
+  const cores = navigator.hardwareConcurrency
+  if (cores != null && cores > 0 && cores <= 4) {
+    cachedPreferAmbientOffDefault = true
+    return true
+  }
+
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+  if (memory != null && memory > 0 && memory <= 4) {
+    cachedPreferAmbientOffDefault = true
+    return true
+  }
+
+  cachedPreferAmbientOffDefault = false
+  return false
+}
+
 export function getStoredLightboxAmbient(): boolean {
   try {
     const v = localStorage.getItem(LIGHTBOX_AMBIENT_STORAGE_KEY)
@@ -39,7 +78,7 @@ export function getStoredLightboxAmbient(): boolean {
   } catch {
     /* private mode */
   }
-  return true
+  return !prefersAmbientOffByDefault()
 }
 
 export function setStoredLightboxAmbient(on: boolean): void {

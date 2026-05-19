@@ -22,7 +22,9 @@
     "paths": {
       "@galleree/gallery-meta": ["../../src/lib/galleryMeta.ts"],
       "@galleree/gallery-collection": ["../../src/lib/galleryCollectionMeta.ts"],
-      "@galleree/gallery-equipment": ["../../src/lib/galleryEquipmentMeta.ts"]
+      "@galleree/gallery-equipment": ["../../src/lib/galleryEquipmentMeta.ts"],
+      "@galleree/gallery-tags": ["../../src/lib/galleryTags.ts"],
+      "@galleree/site-config": ["../../src/lib/siteConfig.ts"]
     }
   },
   "include": ["src"],

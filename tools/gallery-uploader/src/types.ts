@@ -8,6 +8,8 @@ export type UploadRow = {
   location: string
   /** `YYYY-MM-DD` from the date picker */
   captureDate: string
+  /** Full ISO capture time from EXIF (preserves time-of-day for sort). */
+  captureDateTimeIso: string
   collectionSelect: string
   /** When true, sets this photo as the selected collection’s cover on upload. */
   collectionSetCover: boolean
@@ -23,4 +25,28 @@ export type UploadRow = {
   destId: string
   destFilename: string
   destExists: boolean
+  /** When set, updates an existing gallery photo (metadata; image unchanged unless replaced). */
+  editExistingId: string | null
+  /** Preserve sidecar uploadedAt when editing. */
+  preserveUploadedAt: string | null
+}
+
+export type GalleryPhotoEdit = {
+  id: string
+  destFilename: string
+  imagePath: string
+  title: string
+  description: string | null
+  tags: string[]
+  location: string | null
+  capturedOn: string | null
+  capturedAt: string | null
+  collectionSlug: string | null
+  camera: string | null
+  lens: string | null
+  alt: string | null
+  hidden: boolean
+  sortOrder: number | null
+  copyright: string | null
+  uploadedAt: string | null
 }

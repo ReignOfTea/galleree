@@ -13,7 +13,6 @@ import {
   serializeGalleryMeta,
 } from "@galleree/gallery-meta"
 import { isAllowedImagePath, normalizeExtensionFromPath } from "./imageExtensions"
-import { matchEquipmentSlug } from "./matchRegistry"
 import { RegistryCreateModal } from "./components/RegistryCreateModal"
 import { PhotoPanels } from "./PhotoPanels"
 import {
@@ -21,7 +20,10 @@ import {
   fetchGalleryTags,
   setCollectionCoverPhoto,
 } from "./registryService"
-import { parseTagList } from "./lib/tagSuggest"
+import { applyImageHints } from "./lib/applyImageHints"
+import { uploadRowFromGalleryEdit } from "./lib/galleryEditRow"
+import { normalizeKnownTags, parseTagList } from "./lib/tagSuggest"
+import { SiteConfigPanel } from "./components/SiteConfigPanel"
 import {
   resolveCameraValue,
   resolveCollectionSlug,
@@ -33,8 +35,8 @@ import type {
   GalleryRegistries,
   RegistryModalRequest,
 } from "./registryTypes"
-import { SELECT_CUSTOM, SELECT_NONE } from "./registryTypes"
-import type { UploadRow } from "./types"
+import { SELECT_NONE } from "./registryTypes"
+import type { GalleryPhotoEdit, UploadRow } from "./types"
 import "./App.css"
 
 type AppConfig = {
@@ -43,33 +45,24 @@ type AppConfig = {
   workdir: string
 }
 
-type ImageHints = {
-  description: string | null
-  dateTimeOriginalIso: string | null
-  make: string | null
-  model: string | null
-}
-
-function parseIsoToCaptureDate(iso: string | null): string | null {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return null
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-function rowFieldsFromRow(r: UploadRow) {
+function captureDateFromRow(r: UploadRow): Date | null {
+  const iso = r.captureDateTimeIso.trim()
+  if (iso) {
+    const d = new Date(iso)
+    if (!Number.isNaN(d.getTime())) return d
+  }
   const raw = r.captureDate.trim()
-  let captured: Date | null = null
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     const [y, mo, day] = raw.split("-").map(Number)
     const d = new Date(y, mo - 1, day, 0, 0, 0)
-    captured = Number.isNaN(d.getTime()) ? null : d
+    return Number.isNaN(d.getTime()) ? null : d
   }
-  const tags = r.tags
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean)
+  return null
+}
+
+function rowFieldsFromRow(r: UploadRow) {
+  const captured = captureDateFromRow(r)
+  const tags = parseTagList(r.tags)
   const sortRaw = r.sortOrder.trim()
   let sortOrder: number | null = null
   if (sortRaw) {
@@ -96,6 +89,9 @@ function destPreviewForRow(
   r: UploadRow,
   takenNames: ReadonlySet<string>,
 ): { id: string; file: string } | null {
+  if (r.editExistingId && r.destFilename) {
+    return { id: r.editExistingId, file: r.destFilename }
+  }
   if (!r.title.trim()) return null
   return randomGalleryImageFilename(r.extension, takenNames)
 }
@@ -110,6 +106,7 @@ function newRowFromPath(path: string): UploadRow {
     tags: "photos",
     location: "",
     captureDate: "",
+    captureDateTimeIso: "",
     cameraSelect: SELECT_NONE,
     cameraCustom: "",
     lensSelect: SELECT_NONE,
@@ -124,6 +121,8 @@ function newRowFromPath(path: string): UploadRow {
     destId: "",
     destFilename: "",
     destExists: false,
+    editExistingId: null,
+    preserveUploadedAt: null,
   }
 }
 
@@ -200,12 +199,11 @@ export default function App() {
   }, [config])
 
   const knownTags = useMemo(() => {
-    const set = new Set<string>()
-    for (const t of galleryTags) set.add(t)
+    const merged: string[] = [...galleryTags]
     for (const row of rows) {
-      for (const t of parseTagList(row.tags)) set.add(t)
+      merged.push(...parseTagList(row.tags))
     }
-    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+    return normalizeKnownTags(merged)
   }, [galleryTags, rows])
 
   const coverCandidates = useMemo((): CoverCandidate[] => {
@@ -252,8 +250,9 @@ export default function App() {
     if (config) {
       void refreshRegistries()
       void loadGalleryTags()
+      void loadGalleryImages()
     }
-  }, [config, refreshRegistries, loadGalleryTags])
+  }, [config, refreshRegistries, loadGalleryTags, loadGalleryImages])
 
   const needsSetup = config === null
 
@@ -271,22 +270,24 @@ export default function App() {
       const nextRows: UploadRow[] = []
       for (const p of filtered) {
         const row = newRowFromPath(p)
-        const hints = await appInvoke<ImageHints>("read_image_hints", { path: p })
-        const parsed = parseIsoToCaptureDate(hints.dateTimeOriginalIso)
-        if (parsed) {
-          row.captureDate = parsed
-        }
-        const camParts = [hints.make, hints.model].filter(Boolean) as string[]
-        if (camParts.length) {
-          const label = camParts.join(" ")
-          const slug = matchEquipmentSlug(label, registries.cameras)
-          if (slug) {
-            row.cameraSelect = slug
-          } else {
-            row.cameraSelect = SELECT_CUSTOM
-            row.cameraCustom = label
-          }
-        }
+        const hints = await appInvoke<{
+          description: string | null
+          dateTimeOriginalIso: string | null
+          make: string | null
+          model: string | null
+          lensModel: string | null
+        }>("read_image_hints", { path: p })
+        applyImageHints(
+          row,
+          {
+            description: hints.description,
+            dateTimeOriginalIso: hints.dateTimeOriginalIso,
+            make: hints.make,
+            model: hints.model,
+            lensModel: hints.lensModel,
+          },
+          registries,
+        )
         nextRows.push(row)
       }
       const have = new Set(rowsRef.current.map((x) => x.sourcePath))
@@ -473,6 +474,51 @@ export default function App() {
     setErrorDetail(null)
   }
 
+  const addEditPhoto = async () => {
+    if (galleryImages.length === 0) {
+      await loadGalleryImages()
+    }
+    const list =
+      galleryImages.length > 0 ? galleryImages : await fetchGalleryImages()
+    if (list.length === 0) {
+      setStatus("No photos in the gallery project to edit.")
+      return
+    }
+    const pick = window.prompt(
+      `Edit which photo? Enter id or title substring:\n\n${list
+        .slice(0, 12)
+        .map((img) => `${img.id.slice(0, 8)}…  ${img.title}`)
+        .join("\n")}${list.length > 12 ? `\n… and ${list.length - 12} more` : ""}`,
+      list[0]?.id ?? "",
+    )
+    if (!pick?.trim()) return
+    const needle = pick.trim().toLowerCase()
+    const match =
+      list.find((img) => img.id === needle) ??
+      list.find((img) => img.title.toLowerCase().includes(needle))
+    if (!match) {
+      setStatus("No matching gallery photo.")
+      return
+    }
+    setBusy(true)
+    try {
+      const photo = await appInvoke<GalleryPhotoEdit>("get_gallery_photo_for_edit", {
+        id: match.id,
+      })
+      const row = uploadRowFromGalleryEdit(photo, registries)
+      if (rowsRef.current.some((r) => r.editExistingId === row.editExistingId)) {
+        setStatus("That photo is already in the list.")
+        return
+      }
+      setRows((r) => [...r, row])
+      setStatus(`Loaded “${row.title}” for editing.`)
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const updateRow = (id: string, patch: Partial<UploadRow>) => {
     setRows((list) => list.map((x) => (x.id === id ? { ...x, ...patch } : x)))
   }
@@ -496,7 +542,11 @@ export default function App() {
   )
 
   const canUpload =
-    allTitlesOk && rows.length > 0 && !busy && !repoPreparing && !rows.some((r) => r.destExists)
+    allTitlesOk &&
+    rows.length > 0 &&
+    !busy &&
+    !repoPreparing &&
+    !rows.some((r) => r.destExists && !r.editExistingId)
 
   const uploadPics = async () => {
     if (!allTitlesOk) {
@@ -517,8 +567,10 @@ export default function App() {
     try {
       trace(`Filenames: ${rows.length} photo(s) queued.`)
       const ready = await enrichRowsWithDest(rows)
-      if (ready.some((r) => r.destExists)) {
-        const clash = ready.filter((r) => r.destExists).map((r) => r.destFilename)
+      if (ready.some((r) => r.destExists && !r.editExistingId)) {
+        const clash = ready
+          .filter((r) => r.destExists && !r.editExistingId)
+          .map((r) => r.destFilename)
         trace(`Conflict check: these names already exist in the repo: ${clash.join(", ")}`)
         setRows(ready)
         setStatus(
@@ -544,8 +596,13 @@ export default function App() {
         items: ready.map((r) => ({
           sourcePath: r.sourcePath,
           destFilename: r.destFilename,
+          skipImageCopy: Boolean(r.editExistingId),
           metaJson: serializeGalleryMeta(
-            galleryMetaFromUploadFields(rowFieldsFromRow(r), r.destId),
+            galleryMetaFromUploadFields(
+              rowFieldsFromRow(r),
+              r.destId,
+              r.editExistingId ? r.preserveUploadedAt ?? undefined : undefined,
+            ),
           ),
         })),
       })
@@ -696,6 +753,10 @@ export default function App() {
                 Edit settings…
               </button>
             </div>
+            <details className="site-config-details">
+              <summary>Site settings (site.json)</summary>
+              <SiteConfigPanel disabled={busy || repoPreparing} />
+            </details>
             <p className="muted registry-project-hint">
               Create collections, cameras, and lenses before uploading so you can assign them to
               photos. Equipment can include a product image; collections can pick a cover photo.
@@ -733,6 +794,14 @@ export default function App() {
             <div className="actions">
               <button type="button" onClick={() => void addFiles()} disabled={busy}>
                 Add files…
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void addEditPhoto()}
+                disabled={busy || repoPreparing}
+              >
+                Edit existing…
               </button>
               <button type="button" className="ghost" onClick={clearRows} disabled={busy || rows.length === 0}>
                 Clear list

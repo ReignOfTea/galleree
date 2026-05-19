@@ -19,6 +19,7 @@ import {
   ambientStrengthFromIntensity,
   getStoredAmbientIntensity,
   getStoredLightboxAmbient,
+  prefersAmbientOffByDefault,
   sampleAmbientFromImage,
   sampleAmbientFromVisibleImage,
   setStoredAmbientIntensity,
@@ -944,6 +945,12 @@ export function PhotoLightbox({
                     onChange={(e) => setAmbientEnabled(e.target.checked)}
                   />
                 </label>
+                {prefersAmbientOffByDefault() ? (
+                  <p className="lightbox-settings-hint">
+                    Off by default on this device for smoother performance. You can
+                    turn it on here.
+                  </p>
+                ) : null}
                 <div className="lightbox-settings-slider-row">
                   <label
                     className="lightbox-settings-label"
