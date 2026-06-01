@@ -38,6 +38,19 @@
       "type": "string",
       "minLength": 6,
       "maxLength": 128
+    },
+    "exifDisplay": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "required": ["label", "value"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "value": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      }
     }
   }
 }

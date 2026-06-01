@@ -116,6 +116,36 @@ const PREFERRED_ORDER = [
 
 export type ExifDisplayRow = { label: string; value: string }
 
+/** Labels omitted from published sidecars (identity / location leakage). */
+const PRIVATE_EXIF_LABELS = new Set([
+  'Artist',
+  'Copyright',
+  'Software',
+  'Owner name',
+  'Camera owner name',
+  'Serial number',
+  'Image unique ID',
+  'User comment',
+  'GPS latitude',
+  'GPS longitude',
+  'GPS altitude',
+  'GPS position',
+])
+
+const PRIVATE_EXIF_KEY =
+  /^(GPS|Artist|Owner|UserComment|Serial|Software|Copyright|Subsec|ImageUniqueID|CameraOwner|BodySerial)/i
+
+/** Drop identity- or location-bearing rows before writing meta or showing in UI. */
+export function sanitizeExifRowsForPublish(
+  rows: ExifDisplayRow[],
+): ExifDisplayRow[] {
+  return rows.filter((r) => !PRIVATE_EXIF_LABELS.has(r.label))
+}
+
+export function isPrivateExifKey(key: string): boolean {
+  return PRIVATE_EXIF_KEY.test(key)
+}
+
 function exifRowsIncludeLens(rows: ExifDisplayRow[]): boolean {
   return rows.some((r) => r.label === 'Lens')
 }
@@ -156,12 +186,40 @@ export function exifToDisplayRows(raw: Record<string, unknown>): ExifDisplayRow[
   }
 
   for (const key of PREFERRED_ORDER) {
+    if (isPrivateExifKey(key)) continue
     if (key in raw) pushKey(key)
   }
 
   for (const key of Object.keys(raw).sort()) {
+    if (isPrivateExifKey(key)) continue
     pushKey(key)
   }
 
   return rows
+}
+
+/** Build-time subset: preferred technical fields only, capped for sidecar storage. */
+export function exifToDisplayRowsForPublish(
+  raw: Record<string, unknown>,
+  maxRows = 24,
+): ExifDisplayRow[] {
+  const rows: ExifDisplayRow[] = []
+  const seen = new Set<string>()
+
+  const pushKey = (key: string) => {
+    if (SKIP_KEY.test(key) || isPrivateExifKey(key) || seen.has(key)) return
+    const val = raw[key]
+    if (isSkippableValue(val)) return
+    const formatted = formatValue(key, val)
+    if (!formatted) return
+    seen.add(key)
+    rows.push({ label: labelForKey(key), value: formatted })
+  }
+
+  for (const key of PREFERRED_ORDER) {
+    if (key in raw) pushKey(key)
+    if (rows.length >= maxRows) break
+  }
+
+  return sanitizeExifRowsForPublish(rows).slice(0, maxRows)
 }

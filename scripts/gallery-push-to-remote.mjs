@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Commit and push local gallery assets + site config to origin/master (or GALLERY_SYNC_*).
- * Uses git add -f for public/gallery (gitignored paths) like the desktop uploader.
+ * Stages originals and meta under public/gallery/ (thumbs/ and display/ are build artifacts).
  */
 
 import fs from 'node:fs'
@@ -51,7 +51,7 @@ function stageSyncPaths() {
     die('public/gallery/ does not exist — nothing to push.')
   }
 
-  runGit(['add', '-f', '--', 'public/gallery'])
+  runGit(['add', '--', 'public/gallery'])
 
   const configFiles = existingSyncPublicFiles()
   if (configFiles.length > 0) {

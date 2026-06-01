@@ -11,18 +11,21 @@ npm run dev
 
 Open the URL Vite prints (usually `http://localhost:5173`). Add photos under `public/gallery/` (see layout below), then refresh—the dev server reloads when gallery files change.
 
-Production build (regenerates thumbnails, then Vite):
+Production build (regenerates thumbs/display from originals, then Vite):
 
 ```bash
 npm run build
 npm run preview
 ```
 
+After `git clone` or `git pull`, run `npm run generate-assets` (or `npm run build`) once so `thumbs/` and `display/` exist locally.
+
 | Script | Purpose |
 |--------|---------|
 | `npm run dev` | Dev server with hot reload |
-| `npm run build` | Thumbnails + TypeScript + production bundle → `dist/` |
-| `npm run generate-thumbs` | Only `public/gallery/thumbs/*.jpg` |
+| `npm run build` | `generate-assets` + validate + TypeScript + bundle → `dist/` |
+| `npm run generate-assets` | Thumbs, display WebP, blurHash, `exifDisplay` in sidecars |
+| `npm run generate-thumbs` | Alias for `generate-assets` |
 | `npm run preview` | Serve `dist/` locally |
 | `npm run lint` | ESLint |
 
@@ -43,23 +46,20 @@ Each published photo needs:
 
 1. **Image** — `public/gallery/{id}.{ext}` (`jpg`, `png`, `webp`, `avif`, or `gif`)
 2. **Sidecar** — `public/gallery/meta/{id}.json` (same 32-char hex `id`)
-3. **Thumbnail** — `public/gallery/thumbs/{id}.jpg` (created by `npm run build` / `generate-thumbs`)
+3. **Derivatives** (local + CI only, not in git) — `thumbs/` (grid JPEGs) and `display/` (~2400px WebP for lightbox), from `npm run generate-assets` / `npm run build`
 
 ```
 public/gallery/
-  {id}.jpg
+  {id}.jpg                 # tracked in git
   meta/
-    {id}.json              # per-image metadata (required)
-    collections/
-      {slug}.json          # collection registry (optional)
-    cameras/
-      {slug}.json          # camera profile (optional)
-      {slug}.png           # product image (optional)
-    lenses/
-      {slug}.json          # lens profile (optional)
-      {slug}.png
-  thumbs/
+    {id}.json              # per-image metadata (tracked)
+    collections/ …         # registry (tracked)
+    cameras/ …
+    lenses/ …
+  thumbs/                  # generated; .gitkeep only in repo
     {id}.jpg
+  display/                 # generated
+    {id}.webp
 ```
 
 ### Image metadata (`meta/{id}.json`)
@@ -114,13 +114,11 @@ Slugs are lowercase hyphenated (e.g. `sony-ilce-7m4`). Image sidecars may use th
 
 ## Git and gallery assets
 
-`public/gallery/**` is gitignored by default (large binaries). Registry folders are tracked:
+**Tracked in git:** originals (`public/gallery/{id}.{ext}`), photo sidecars (`meta/{id}.json`), and equipment/collection registries under `meta/cameras/`, `meta/lenses/`, `meta/collections/`.
 
-- `public/gallery/meta/cameras/**`
-- `public/gallery/meta/lenses/**`
-- `public/gallery/meta/collections/**`
+**Not tracked (regenerated locally and in CI):** `public/gallery/thumbs/` and `public/gallery/display/` — run `npm run generate-assets` or `npm run build` after clone or pull.
 
-To commit photos and sidecars: `git add -f public/gallery/` (or use the desktop uploader below).
+`.gitignore` does **not** shrink an existing clone: anything already committed stays in history and is downloaded on `git pull`. Git only transfers **new or changed** objects, so a code-only push/pull is small unless gallery files changed. The old “ignore the whole gallery + `git add -f`” pattern hid files from normal `git add` but did not stop pulls once assets were on the remote.
 
 ### Sync with `origin/master`
 
@@ -129,9 +127,11 @@ To commit photos and sidecars: `git add -f public/gallery/` (or use the desktop 
 | Pull remote gallery into this checkout | `npm run gallery:pull` |
 | Push local gallery + `site.json` / logo / CNAME to remote | `npm run gallery:push` |
 
-`gallery:pull` deletes local images, photo sidecars (`meta/{id}.json`), thumbs, and registry files under `public/gallery/`, then checks out the same paths from `origin/master` (override with `GALLERY_SYNC_REMOTE` / `GALLERY_SYNC_BRANCH`).
+`gallery:pull` replaces local gallery originals and meta from the remote, then run `npm run generate-assets`. `gallery:push` runs `git pull --rebase`, `git add public/gallery/`, optional site config, commit, and push. Env: `GALLERY_SYNC_COMMIT_MESSAGE`, `GALLERY_SYNC_SKIP_PULL=1`, `GALLERY_SYNC_DRY=1`. Default branch is `master` unless `GALLERY_SYNC_ALLOW_ANY_BRANCH=1`.
 
-`gallery:push` runs `git pull --rebase`, `git add -f public/gallery/`, stages site config files if present, commits, and pushes to `master`. Set `GALLERY_SYNC_COMMIT_MESSAGE`, `GALLERY_SYNC_SKIP_PULL=1`, or `GALLERY_SYNC_DRY=1` as needed. You must be on `master` unless `GALLERY_SYNC_ALLOW_ANY_BRANCH=1`.
+**Code-only work:** commit with `git add` / `git push` as usual. Use `local-scripts/deploy.ps1 -CodeOnly` to build and push without staging gallery changes.
+
+**CI (GitHub Pages):** Actions runs `npm run build` on push; the runner generates derivatives from tracked originals and meta—nothing under `thumbs/` or `display/` needs to be in git.
 
 ## Desktop uploader
 
@@ -149,7 +149,7 @@ Share pages for individual photos are emitted under `dist/share/p/` when `siteUr
 |------|------|
 | `src/` | React UI, hooks, gallery logic |
 | `vite/` | Manifest plugin, share HTML, site meta injection |
-| `scripts/generate-gallery-thumbs.mjs` | Sharp-based thumb generation |
+| `scripts/generate-gallery-assets.mjs` | Thumbs, display WebP, blurHash, EXIF sidecar fields |
 | `schemas/` | JSON Schema for metadata files (authoring reference) |
 | `public/site.json` | Site copy and branding |
 | `public/gallery/` | Images and metadata |

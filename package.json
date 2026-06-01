@@ -5,17 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "generate-thumbs": "node scripts/generate-gallery-thumbs.mjs",
-    "build": "node scripts/generate-gallery-thumbs.mjs && tsc -b && vite build",
-    "generate-blurhashes": "node scripts/generate-gallery-thumbs.mjs",
+    "generate-thumbs": "node scripts/generate-gallery-assets.mjs",
+    "generate-assets": "node scripts/generate-gallery-assets.mjs",
+    "validate-meta": "node scripts/validate-gallery-meta.mjs",
+    "build": "node scripts/generate-gallery-assets.mjs && node scripts/validate-gallery-meta.mjs && tsc -b && vite build",
+    "generate-blurhashes": "node scripts/generate-gallery-assets.mjs",
     "gallery:pull": "node scripts/gallery-pull-from-remote.mjs",
     "gallery:push": "node scripts/gallery-push-to-remote.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "blurhash": "^2.0.5",
-    "exifr": "^7.1.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
@@ -25,13 +27,17 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "exifr": "^7.1.3",
     "globals": "^17.5.0",
     "sharp": "^0.34.5",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "@playwright/test": "^1.55.0"
   }
 }

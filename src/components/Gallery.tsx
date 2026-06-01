@@ -1,6 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { galleryColumns, maxConcurrentImageLoads } from '../lib/config'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import {
+  galleryColumns,
+  galleryVirtualizeBatch,
+  galleryVirtualizeInitial,
+  galleryVirtualizeThreshold,
+  maxConcurrentImageLoads,
+} from '../lib/config'
 import { GALLERY_HOME_NAV_EVENT } from '../lib/galleryHomeNav'
+import type { GalleryEquipmentRegistry } from '../lib/galleryEquipmentMeta'
 import {
   clearPhotoFromLocation,
   parsePhotoFromLocation,
@@ -14,26 +29,28 @@ import {
 } from '../lib/lightboxPreload'
 import { packJustifiedGalleryRows } from '../lib/galleryJustifiedLayout'
 import type { GalleryEntry } from '../hooks/useGalleryManifest'
-import { useGalleryManifest } from '../hooks/useGalleryManifest'
 import type { ResolvedEmptyMessages } from '../lib/siteConfig'
 import { resolveCameraEquipmentDetail } from '../lib/galleryEquipmentMeta'
 import type { EquipmentOpenContext } from './EquipmentCaptionLink'
 import { EquipmentDetailModal } from './EquipmentDetailModal'
 import { GalleryRow } from './GalleryRow'
-import { PhotoLightbox, type LightboxPhoto } from './PhotoLightbox'
 
-function toLightboxPhoto(entry: GalleryEntry): LightboxPhoto {
+const PhotoLightbox = lazy(() =>
+  import('./PhotoLightbox').then((m) => ({ default: m.PhotoLightbox })),
+)
+
+export type { LightboxPhoto } from './PhotoLightbox'
+
+function toLightboxPhoto(entry: GalleryEntry) {
   return entry
 }
 
 type Props = {
   items: GalleryEntry[]
-  /** Full gallery (ignores tag filter) for resolving `#photo=` / `?photo=` links. */
   allItems: GalleryEntry[]
+  equipment: GalleryEquipmentRegistry
   siteTitle: string
-  /** Active collection filter — enables “Copy collection link” in the lightbox. */
   collectionSlug?: string | null
-  /** Why the grid is empty when filters/search yield nothing */
   emptyHint?: 'filters' | 'search'
   emptyMessages: ResolvedEmptyMessages
   selectedTags: readonly string[]
@@ -58,6 +75,7 @@ function readGridMetrics(el: HTMLElement): GridMetrics {
 export function Gallery({
   items,
   allItems,
+  equipment,
   siteTitle,
   collectionSlug = null,
   emptyHint,
@@ -65,11 +83,10 @@ export function Gallery({
   selectedTags,
   onToggleTag,
 }: Props) {
-  const [lightbox, setLightbox] = useState<LightboxPhoto | null>(null)
+  const [lightbox, setLightbox] = useState<GalleryEntry | null>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const [equipmentModal, setEquipmentModal] =
     useState<EquipmentOpenContext | null>(null)
-  const { equipment } = useGalleryManifest()
   const gridRef = useRef<HTMLDivElement>(null)
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ width: 0, gap: 16 })
 
@@ -113,17 +130,17 @@ export function Gallery({
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null
-    preloadLightboxImage(item.url)
+    preloadLightboxImage(item.viewUrl)
     setLightbox(toLightboxPhoto(item))
   }, [])
 
   const warmLightboxImage = useCallback((item: GalleryEntry) => {
-    preloadLightboxImage(item.url)
+    preloadLightboxImage(item.viewUrl)
   }, [])
 
   useEffect(() => {
     if (!lightbox) return
-    preloadLightboxImage(lightbox.url)
+    preloadLightboxImage(lightbox.viewUrl)
     scheduleLightboxNeighborsPreload(items, lightbox.file)
   }, [lightbox, items])
 
@@ -165,12 +182,12 @@ export function Gallery({
   )
 
   const openCollectionPeer = useCallback((entry: GalleryEntry) => {
-    preloadLightboxImage(entry.url)
+    preloadLightboxImage(entry.viewUrl)
     setLightbox(toLightboxPhoto(entry))
   }, [])
 
   const collectionPeersFor = useCallback(
-    (photo: LightboxPhoto) => {
+    (photo: GalleryEntry) => {
       const slug = photo.collectionSlug
       if (!slug) return []
       return allItems
@@ -220,24 +237,67 @@ export function Gallery({
   )
   const selectedTagSet = useMemo(() => new Set(selectedTags), [selectedTags])
   const columns = galleryColumns
+  const useProgressive = items.length > galleryVirtualizeThreshold
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  const [progressiveVisible, setProgressiveVisible] = useState(() =>
+    Math.min(items.length, galleryVirtualizeInitial),
+  )
+  const [progressiveCtx, setProgressiveCtx] = useState({
+    length: items.length,
+    enabled: useProgressive,
+  })
+  if (
+    progressiveCtx.length !== items.length ||
+    progressiveCtx.enabled !== useProgressive
+  ) {
+    setProgressiveCtx({ length: items.length, enabled: useProgressive })
+    if (useProgressive) {
+      setProgressiveVisible(
+        Math.min(items.length, galleryVirtualizeInitial),
+      )
+    }
+  }
+  const visibleCount = useProgressive ? progressiveVisible : items.length
+
+  const windowedItems = useMemo(
+    () => (useProgressive ? items.slice(0, visibleCount) : items),
+    [items, useProgressive, visibleCount],
+  )
+
+  useEffect(() => {
+    if (!useProgressive || visibleCount >= items.length) return
+    const el = loadMoreRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        setProgressiveVisible((c) =>
+          Math.min(items.length, c + galleryVirtualizeBatch),
+        )
+      },
+      { rootMargin: '480px 0px', threshold: 0 },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [useProgressive, visibleCount, items.length])
 
   const layoutRows = useMemo(() => {
     if (gridMetrics.width <= 0) {
       const fallback: { items: GalleryEntry[]; thumbHeight: number }[] = []
-      for (let i = 0; i < items.length; i += columns) {
+      for (let i = 0; i < windowedItems.length; i += columns) {
         fallback.push({
-          items: items.slice(i, i + columns),
+          items: windowedItems.slice(i, i + columns),
           thumbHeight: 280,
         })
       }
       return fallback
     }
-    return packJustifiedGalleryRows(items, {
+    return packJustifiedGalleryRows(windowedItems, {
       maxCols: columns,
       containerWidth: gridMetrics.width,
       gap: gridMetrics.gap,
     })
-  }, [items, columns, gridMetrics])
+  }, [windowedItems, columns, gridMetrics])
 
   if (items.length === 0) {
     const message =
@@ -265,20 +325,30 @@ export function Gallery({
             onToggleTag={onToggleTag}
           />
         ))}
+        {useProgressive && visibleCount < items.length ? (
+          <div
+            ref={loadMoreRef}
+            className="gallery-load-more-sentinel"
+            aria-hidden
+          />
+        ) : null}
       </div>
       {lightbox ? (
-        <PhotoLightbox
-          photo={lightbox}
-          siteTitle={siteTitle}
-          collectionSlug={collectionSlug}
-          onClose={closeLightbox}
-          onAdjacent={items.length > 1 ? goAdjacent : undefined}
-          onEquipmentOpen={openEquipment}
-          collectionPeers={collectionPeersFor(lightbox)}
-          onOpenCollectionPeer={openCollectionPeer}
-          selectedTags={selectedTags}
-          onToggleTag={onToggleTag}
-        />
+        <Suspense fallback={null}>
+          <PhotoLightbox
+            key={lightbox.file}
+            photo={lightbox}
+            siteTitle={siteTitle}
+            collectionSlug={collectionSlug}
+            onClose={closeLightbox}
+            onAdjacent={items.length > 1 ? goAdjacent : undefined}
+            onEquipmentOpen={openEquipment}
+            collectionPeers={collectionPeersFor(lightbox)}
+            onOpenCollectionPeer={openCollectionPeer}
+            selectedTags={selectedTags}
+            onToggleTag={onToggleTag}
+          />
+        </Suspense>
       ) : null}
       {equipmentModal && equipmentDetail ? (
         <EquipmentDetailModal

@@ -16,7 +16,8 @@ on:
       - 'vite.config.ts'
       - 'index.html'
       - 'package.json'
-      - 'package-lock.json'
+      - 'scripts/**'
+      - 'schemas/**'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
@@ -48,7 +49,7 @@ jobs:
       - name: Build
         env:
           VITE_BASE: ${{ vars.VITE_BASE }}
-        # Runs scripts/generate-gallery-thumbs.mjs first so dist includes gallery/thumbs/*.jpg for the grid.
+        # Checkout has originals + meta only; build runs generate-assets (thumbs, display) then Vite.
         run: npm run build
 
       - name: Upload Pages artifact

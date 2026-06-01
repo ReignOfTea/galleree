@@ -95,8 +95,8 @@ export function loadGalleryBuildExtras(root: string): {
 }
 
 export function buildSitemapXml(
-  siteUrl: string,
-  viteBase: string,
+  _siteUrl: string,
+  _viteBase: string,
   extras: ReturnType<typeof loadGalleryBuildExtras>,
   absolutePublicUrl: (rel: string) => string,
 ): string {
@@ -112,13 +112,7 @@ export function buildSitemapXml(
   </url>`)
 
   for (const slug of extras.collectionSlugs) {
-    const loc = new URL(siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`)
-    const pb = viteBase.startsWith('/') ? viteBase : `/${viteBase}`
-    const baseSeg = pb === '/' ? '' : pb.replace(/^\/+|\/+$/g, '')
-    const pathPart = baseSeg
-      ? `/${baseSeg}/?collection=${encodeURIComponent(slug)}`
-      : `/?collection=${encodeURIComponent(slug)}`
-    const collectionUrl = `${loc.origin}${pathPart}`
+    const collectionUrl = absolutePublicUrl(`share/c/${slug}.html`)
     urls.push(`  <url>
     <loc>${escapeXml(collectionUrl)}</loc>
     <lastmod>${today}</lastmod>

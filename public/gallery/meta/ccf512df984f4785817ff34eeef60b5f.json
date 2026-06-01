@@ -11,5 +11,75 @@
   "capturedOn": "2026-05-10",
   "camera": "Sony Ilce 7m4",
   "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
-  "blurHash": "UDEo6;Os0L^M~W?GMw9a_2-:Mx4:?at7RPIU"
+  "blurHash": "UDEo6;Os0L^M~W?GMw9a_2-:Mx4:?at7RPIU",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "28 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "28 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/2.8"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/500 s"
+    },
+    {
+      "label": "ISO",
+      "value": "100"
+    },
+    {
+      "label": "Exposure program",
+      "value": "Aperture priority"
+    },
+    {
+      "label": "Metering mode",
+      "value": "Pattern"
+    },
+    {
+      "label": "Flash",
+      "value": "Flash did not fire, compulsory flash mode"
+    },
+    {
+      "label": "White balance",
+      "value": "Auto"
+    },
+    {
+      "label": "Date (original)",
+      "value": "10 May 2026, 13:25"
+    },
+    {
+      "label": "Date (created)",
+      "value": "10 May 2026, 13:25"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "10 May 2026, 13:25"
+    },
+    {
+      "label": "Orientation",
+      "value": "Horizontal (normal)"
+    },
+    {
+      "label": "Color space",
+      "value": "1"
+    }
+  ]
 }

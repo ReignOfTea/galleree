@@ -14,5 +14,71 @@
   "camera": "Sony Ilce 7m4",
   "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
   "collectionSlug": "crewe-cult-protest",
-  "blurHash": "U49Q20~S01D+0xs;IW9u0iIV=_s-icNe?a~B"
+  "blurHash": "U49Q20~S01D+0xs;IW9u0iIV=_s-icNe?a~B",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "134 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "134 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/5"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/1250 s"
+    },
+    {
+      "label": "ISO",
+      "value": "100"
+    },
+    {
+      "label": "Exposure program",
+      "value": "Aperture priority"
+    },
+    {
+      "label": "Metering mode",
+      "value": "Pattern"
+    },
+    {
+      "label": "Flash",
+      "value": "Flash did not fire, compulsory flash mode"
+    },
+    {
+      "label": "White balance",
+      "value": "Auto"
+    },
+    {
+      "label": "Date (original)",
+      "value": "9 May 2026, 14:02"
+    },
+    {
+      "label": "Date (created)",
+      "value": "9 May 2026, 14:02"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "13 May 2026, 20:51"
+    },
+    {
+      "label": "Color space",
+      "value": "1"
+    }
+  ]
 }

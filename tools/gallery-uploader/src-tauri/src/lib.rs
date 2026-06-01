@@ -1093,7 +1093,7 @@ fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String,
         .args(["pull", "--rebase", "origin", branch]);
     output_status(&mut pull)?;
 
-    // Gallery images, meta, and thumbs are gitignored (see .gitignore); normal `git add` skips them.
+    // Originals and meta under public/gallery/ are tracked; thumbs/ and display/ are gitignored build output.
     let mut add_paths = vec!["public/gallery"];
     for rel in ["public/site.json", "public/logo.svg", "public/CNAME"] {
         if workdir.join(rel).is_file() {
@@ -1101,7 +1101,7 @@ fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String,
         }
     }
     let mut add = git_command(&workdir);
-    add.arg("add").arg("-f").arg("--");
+    add.arg("add").arg("--");
     for p in &add_paths {
         add.arg(p);
     }
@@ -1112,7 +1112,7 @@ fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String,
     let staged = output_status(&mut staged_names)?;
     if staged.trim().is_empty() {
         return Err(
-            "Nothing staged after git add -f. \
+            "Nothing staged after git add. \
              If you used Upload, the copy step may have failed, or files on disk match the last commit exactly."
                 .into(),
         );

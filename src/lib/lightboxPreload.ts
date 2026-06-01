@@ -21,19 +21,19 @@ export function preloadLightboxImage(url: string): void {
 }
 
 export function preloadLightboxNeighbors(
-  items: readonly { file: string; url: string }[],
+  items: readonly { file: string; viewUrl: string }[],
   currentFile: string,
 ): void {
   const index = items.findIndex((e) => e.file === currentFile)
   if (index < 0) return
   for (const delta of [-1, 1] as const) {
     const neighbor = items[index + delta]
-    if (neighbor) preloadLightboxImage(neighbor.url)
+    if (neighbor) preloadLightboxImage(neighbor.viewUrl)
   }
 }
 
 export function scheduleLightboxNeighborsPreload(
-  items: readonly { file: string; url: string }[],
+  items: readonly { file: string; viewUrl: string }[],
   currentFile: string,
 ): void {
   const run = () => preloadLightboxNeighbors(items, currentFile)

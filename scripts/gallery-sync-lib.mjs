@@ -99,13 +99,17 @@ export function cleanLocalGalleryAssets() {
     }
   }
 
-  if (fs.existsSync(THUMBS_DIR)) {
-    for (const name of fs.readdirSync(THUMBS_DIR)) {
-      removeEntry(THUMBS_DIR, name)
-      removed += 1
+  const DISPLAY_DIR = path.join(GALLERY_DIR, 'display')
+
+  for (const dir of [THUMBS_DIR, DISPLAY_DIR]) {
+    if (fs.existsSync(dir)) {
+      for (const name of fs.readdirSync(dir)) {
+        removeEntry(dir, name)
+        removed += 1
+      }
+    } else {
+      fs.mkdirSync(dir, { recursive: true })
     }
-  } else {
-    fs.mkdirSync(THUMBS_DIR, { recursive: true })
   }
 
   if (fs.existsSync(META_DIR)) {

@@ -14,5 +14,71 @@
   "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
   "collectionSlug": "unite-the-kingdom-may-2026",
   "uploadedAt": "2026-05-18T20:39:21.672Z",
-  "blurHash": "U4By:K9[0K9Z8{00?v^*0KIAWFNG~q~WMd9a"
+  "blurHash": "U4By:K9[0K9Z8{00?v^*0KIAWFNG~q~WMd9a",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "47 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "47 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/3.5"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/100 s"
+    },
+    {
+      "label": "ISO",
+      "value": "100"
+    },
+    {
+      "label": "Exposure program",
+      "value": "Aperture priority"
+    },
+    {
+      "label": "Metering mode",
+      "value": "Pattern"
+    },
+    {
+      "label": "Flash",
+      "value": "Flash did not fire, compulsory flash mode"
+    },
+    {
+      "label": "White balance",
+      "value": "Auto"
+    },
+    {
+      "label": "Date (original)",
+      "value": "16 May 2026, 17:06"
+    },
+    {
+      "label": "Date (created)",
+      "value": "16 May 2026, 17:06"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "18 May 2026, 00:20"
+    },
+    {
+      "label": "Color space",
+      "value": "1"
+    }
+  ]
 }

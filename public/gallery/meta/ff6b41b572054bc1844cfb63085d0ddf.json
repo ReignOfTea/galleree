@@ -12,5 +12,31 @@
   "camera": "Sony Ilce 7m4",
   "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
   "collectionSlug": "crewe-cult-protest",
-  "blurHash": "UFEB?U~W%Mxu_N_3yD-:-px]?b-;?H-ptRX9"
+  "blurHash": "UFEB?U~W%Mxu_N_3yD-:-px]?b-;?H-ptRX9",
+  "exifDisplay": [
+    {
+      "label": "JFIF Version",
+      "value": "258"
+    },
+    {
+      "label": "Resolution Unit",
+      "value": "0"
+    },
+    {
+      "label": "Thumbnail Height",
+      "value": "0"
+    },
+    {
+      "label": "Thumbnail Width",
+      "value": "0"
+    },
+    {
+      "label": "X Resolution",
+      "value": "1"
+    },
+    {
+      "label": "Y Resolution",
+      "value": "1"
+    }
+  ]
 }

@@ -10,12 +10,14 @@ import { PortfolioIntro } from './components/PortfolioIntro'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useCollectionCoverPreload } from './hooks/useCollectionCoverPreload'
 import { useGalleryManifest } from './hooks/useGalleryManifest'
+import type { GalleryEntry } from './hooks/useGalleryManifest'
 import { useSiteConfig } from './hooks/useSiteConfig'
 import { preloadCollectionCovers } from './lib/assetCache'
 import { maxConcurrentImageLoads } from './lib/config'
 import { createLoadGate } from './lib/loadGate'
 import { resolveEmptyMessages } from './lib/siteConfig'
-import type { GalleryEntry } from './hooks/useGalleryManifest'
+import type { GalleryCollection } from './lib/galleryCollections'
+import type { GalleryEquipmentRegistry } from './lib/galleryEquipmentMeta'
 import {
   compareGalleryEntries,
   DEFAULT_GALLERY_SORT_ORDER,
@@ -42,7 +44,25 @@ import './App.css'
 
 export default function App() {
   const site = useSiteConfig()
-  const { entries: entriesWithMeta, collections } = useGalleryManifest()
+  const manifest = useGalleryManifest()
+  const { entriesWithMeta, collections, equipment } = useMemo((): {
+    entriesWithMeta: GalleryEntry[]
+    collections: GalleryCollection[]
+    equipment: GalleryEquipmentRegistry
+  } => {
+    if (manifest.status !== 'ready') {
+      return {
+        entriesWithMeta: [],
+        collections: [],
+        equipment: { cameras: {}, lenses: {} },
+      }
+    }
+    return {
+      entriesWithMeta: manifest.entries,
+      collections: manifest.collections,
+      equipment: manifest.equipment,
+    }
+  }, [manifest])
   const locationsLabel = site.locationsLabel ?? 'Locations'
   const tagsLabel = site.tagsLabel ?? 'Tags'
   const collectionsLabel = site.eventsLabel ?? 'Collections'
@@ -359,6 +379,34 @@ export default function App() {
     }
   }, [filtersPanelOpen])
 
+  if (manifest.status === 'loading') {
+    return (
+      <div className="portfolio">
+        <PortfolioIntro config={site} onHomeClick={goHome} />
+        <main id="gallery-main" className="portfolio-main">
+          <p className="gallery-empty" role="status">
+            Loading gallery…
+          </p>
+        </main>
+        <PortfolioFooter config={site} />
+      </div>
+    )
+  }
+
+  if (manifest.status === 'error') {
+    return (
+      <div className="portfolio">
+        <PortfolioIntro config={site} onHomeClick={goHome} />
+        <main id="gallery-main" className="portfolio-main">
+          <p className="gallery-empty" role="alert">
+            Could not load gallery: {manifest.message}
+          </p>
+        </main>
+        <PortfolioFooter config={site} />
+      </div>
+    )
+  }
+
   return (
     <div className="portfolio">
       <a href="#gallery-main" className="skip-link">
@@ -430,6 +478,7 @@ export default function App() {
           <Gallery
             items={filtered}
             allItems={annotated}
+            equipment={equipment}
             siteTitle={site.title}
             collectionSlug={activeCollectionSlug}
             emptyHint={galleryEmptyHint}

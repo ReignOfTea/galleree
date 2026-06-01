@@ -7,6 +7,7 @@ import {
   type ResolvedEquipmentRef,
 } from './galleryEquipmentMeta'
 import { normalizeGalleryTags } from './galleryTags'
+import type { ExifDisplayRow } from './exifDisplay'
 
 export const GALLERY_META_VERSION = 1 as const
 
@@ -44,6 +45,8 @@ export type GalleryImageMetaFile = {
   copyright: string | null
   uploadedAt: string | null
   blurHash: string | null
+  /** Technical EXIF rows for lightbox (build-time only; sanitized). */
+  exifDisplay: ExifDisplayRow[] | null
 }
 
 export type GalleryMetaSource = 'json'
@@ -61,6 +64,7 @@ export type ResolvedGalleryMeta = Omit<FilenameMeta, 'parseMode'> & {
   cameraRef: ResolvedEquipmentRef | null
   lensRef: ResolvedEquipmentRef | null
   lensLabel: string | null
+  exifRows: ExifDisplayRow[]
 }
 
 export function galleryIdFromBasename(file: string): string {
@@ -77,6 +81,24 @@ export function metaRelativePathForImage(galleryFile: string): string {
 
 export function thumbRelativePathForId(id: string): string {
   return `thumbs/${id}.jpg`
+}
+
+export function thumbVariantRelativePath(id: string, width: number): string {
+  return `thumbs/${id}-${width}.jpg`
+}
+
+export function thumbVariantAvifRelativePath(id: string, width: number): string {
+  return `thumbs/${id}-${width}.avif`
+}
+
+export function displayAvifRelativePathForId(id: string): string {
+  return `display/${id}.avif`
+}
+
+export const GALLERY_THUMB_WIDTHS = [400, 720, 1080] as const
+
+export function displayRelativePathForId(id: string): string {
+  return `display/${id}.webp`
 }
 
 export function thumbRelativePathForImage(galleryFile: string): string {
@@ -155,6 +177,19 @@ function nullableString(raw: unknown): string | null {
   return t ? t : null
 }
 
+function normalizeExifDisplay(raw: unknown): ExifDisplayRow[] | null {
+  if (!Array.isArray(raw)) return null
+  const rows: ExifDisplayRow[] = []
+  for (const item of raw) {
+    if (!isRecord(item)) continue
+    const label = typeof item.label === 'string' ? item.label.trim() : ''
+    const value = typeof item.value === 'string' ? item.value.trim() : ''
+    if (!label || !value) continue
+    rows.push({ label, value })
+  }
+  return rows.length > 0 ? rows : null
+}
+
 function normalizeSortOrder(raw: unknown): number | null {
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw
   if (typeof raw === 'string' && raw.trim()) {
@@ -215,7 +250,7 @@ export function parseGalleryMetaFile(
   if (options.expectedId && id !== options.expectedId.toLowerCase()) return null
 
   const location = nullableString(raw.location)
-  let tags = normalizeGalleryTags(
+  const tags = normalizeGalleryTags(
     stripLocationFromTags(normalizeStringArray(raw.tags), location),
   )
 
@@ -237,6 +272,7 @@ export function parseGalleryMetaFile(
     copyright: nullableString(raw.copyright),
     uploadedAt: normalizeIsoDateTime(raw.uploadedAt),
     blurHash: nullableString(raw.blurHash),
+    exifDisplay: normalizeExifDisplay(raw.exifDisplay),
   }
 }
 
@@ -337,6 +373,7 @@ export function galleryMetaFromUploadFields(
     copyright: fields.copyright.trim() || null,
     uploadedAt: uploadedAt ?? nowIsoTimestamp(),
     blurHash: null,
+    exifDisplay: null,
   }
 }
 
@@ -361,6 +398,7 @@ export function serializeGalleryMeta(meta: GalleryImageMetaFile): string {
   if (meta.copyright) out.copyright = meta.copyright
   if (meta.uploadedAt) out.uploadedAt = meta.uploadedAt
   if (meta.blurHash) out.blurHash = meta.blurHash
+  if (meta.exifDisplay?.length) out.exifDisplay = meta.exifDisplay
   return `${JSON.stringify(out, null, 2)}\n`
 }
 
@@ -414,6 +452,7 @@ export function resolveGalleryMeta(
     cameraRef,
     lensRef,
     lensLabel: lensRef?.label ?? null,
+    exifRows: meta.exifDisplay ?? [],
   }
 }
 

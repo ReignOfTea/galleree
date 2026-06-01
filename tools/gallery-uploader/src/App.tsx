@@ -633,7 +633,7 @@ export default function App() {
       trace(`git_commit_and_push returned: ${msg}`)
       if (/nothing to commit/i.test(msg)) {
         trace(
-          "Hint: gallery images are usually gitignored; the app uses “git add -f”. If you still see this, update the uploader or check the repo .gitignore.",
+          "Hint: files on disk may already match the last commit, or the repo workdir path is wrong. Check technical details and public/gallery/ on disk.",
         )
         setStatus("Upload copied files, but Git reported nothing new to publish. See technical details below.")
         setErrorDetail(lines.join("\n"))

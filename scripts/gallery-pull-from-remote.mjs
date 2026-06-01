@@ -42,7 +42,7 @@ function main() {
   checkoutFromRemote()
 
   log(`Done. Local public/gallery matches remote ${BRANCH}.`)
-  log('Run npm run generate-thumbs if any thumbs are missing locally.')
+  log('Run npm run generate-assets if thumbs or display/ are missing locally.')
 }
 
 main()

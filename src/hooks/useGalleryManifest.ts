@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import {
   type GalleryEquipmentRegistry,
   type ResolvedEquipment,
@@ -9,8 +9,12 @@ import {
   buildGalleryCollections,
   type GalleryCollection,
 } from '../lib/galleryCollections'
-import type { GalleryManifest, ManifestEquipmentEntry } from '../lib/manifest'
-import rawManifest from 'virtual:gallery-manifest'
+import type {
+  GalleryManifest,
+  ManifestEquipmentEntry,
+  ManifestThumbVariant,
+} from '../lib/manifest'
+import { GALLERY_MANIFEST_FILENAME } from '../lib/manifest'
 
 function encodeGallerySegments(relativePath: string): string {
   return relativePath
@@ -20,7 +24,6 @@ function encodeGallerySegments(relativePath: string): string {
     .join('/')
 }
 
-/** Prefer manifest absolute URL; otherwise root-relative path + current origin in the browser. */
 function resolveSharePageUrlForUi(
   manifestShareUrl: string | undefined,
   shareStub: string | undefined,
@@ -37,23 +40,53 @@ function resolveSharePageUrlForUi(
   return raw
 }
 
+function thumbSrcSetFromVariants(
+  base: string,
+  variants: ManifestThumbVariant[] | undefined,
+  fallbackUrl: string | null,
+  kind: 'path' | 'pathAvif',
+): string | null {
+  if (variants && variants.length > 0) {
+    const parts = variants
+      .map((v) => {
+        const rel = kind === 'pathAvif' ? v.pathAvif : v.path
+        if (!rel) return null
+        return `${base}gallery/${encodeGallerySegments(rel)} ${v.width}w`
+      })
+      .filter(Boolean) as string[]
+    if (parts.length > 0) return parts.join(', ')
+  }
+  if (kind === 'pathAvif') return null
+  return fallbackUrl ? `${fallbackUrl} 720w` : null
+}
+
 export type ResolvedGalleryImage = {
   file: string
   /** Full-resolution asset */
   url: string
-  /** Smaller grid thumbnail when `npm run build` generated `gallery/thumbs/{stem}.jpg` */
+  /** Lightbox / warm URL (~2400px WebP when built) */
+  viewUrl: string
+  /** Display derivative when generated */
+  displayUrl: string | null
   thumbUrl: string | null
-  /** Width / height for justified grid layout */
+  thumbSrcSet: string | null
+  thumbSrcSetAvif: string | null
   thumbAspect: number
-  /** Absolute `https://…` URL for static share page when manifest includes `siteUrl` build output */
   sharePageUrl: string | null
   blurHash: string | null
 }
 
-/** Resolved image plus gallery metadata for grid & lightbox */
 export type GalleryEntry = ResolvedGalleryImage & ResolvedGalleryMeta
 
-const manifest = rawManifest as GalleryManifest
+export type GalleryManifestState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | {
+      status: 'ready'
+      entries: GalleryEntry[]
+      equipment: GalleryEquipmentRegistry
+      collections: GalleryCollection[]
+    }
 
 function resolveEquipmentMap(
   raw: Record<string, ManifestEquipmentEntry>,
@@ -76,40 +109,57 @@ function resolveEquipmentMap(
   return out
 }
 
-export function useGalleryManifest(): {
-  entries: GalleryEntry[]
-  equipment: GalleryEquipmentRegistry
-  collections: GalleryCollection[]
-} {
-  return useMemo(() => {
-    const base = import.meta.env.BASE_URL
-    const registry = manifest.collections ?? {}
-    const collectionTitles = new Map(
-      Object.entries(registry).map(([slug, doc]) => [slug, doc.title]),
-    )
-    const cameras = resolveEquipmentMap(
-      manifest.equipment?.cameras ?? {},
-      base,
-    )
-    const lenses = resolveEquipmentMap(manifest.equipment?.lenses ?? {}, base)
-    const cameraMap = new Map(Object.entries(cameras))
-    const lensMap = new Map(Object.entries(lenses))
-    const entries = manifest.images.map(
-      ({
+function manifestToState(manifest: GalleryManifest, base: string): Omit<
+  Extract<GalleryManifestState, { status: 'ready' }>,
+  'status'
+> {
+  const registry = manifest.collections ?? {}
+  const collectionTitles = new Map(
+    Object.entries(registry).map(([slug, doc]) => [slug, doc.title]),
+  )
+  const cameras = resolveEquipmentMap(manifest.equipment?.cameras ?? {}, base)
+  const lenses = resolveEquipmentMap(manifest.equipment?.lenses ?? {}, base)
+  const cameraMap = new Map(Object.entries(cameras))
+  const lensMap = new Map(Object.entries(lenses))
+  const entries = manifest.images.map(
+    ({
+      file,
+      meta,
+      thumb,
+      thumbVariants,
+      display,
+      thumbWidth,
+      thumbHeight,
+      shareStub,
+      sharePageUrl: manifestShareUrl,
+      blurHash,
+    }) => {
+      const url = `${base}gallery/${encodeGallerySegments(file)}`
+      const thumbUrl = thumb
+        ? `${base}gallery/${encodeGallerySegments(thumb)}`
+        : null
+      const displayUrl = display
+        ? `${base}gallery/${encodeGallerySegments(display)}`
+        : null
+      const viewUrl = displayUrl ?? url
+      return {
         file,
-        meta,
-        thumb,
-        thumbWidth,
-        thumbHeight,
-        shareStub,
-        sharePageUrl: manifestShareUrl,
-        blurHash,
-      }) => ({
-        file,
-        url: `${base}gallery/${encodeGallerySegments(file)}`,
-        thumbUrl: thumb
-          ? `${base}gallery/${encodeGallerySegments(thumb)}`
-          : null,
+        url,
+        viewUrl,
+        displayUrl,
+        thumbUrl,
+        thumbSrcSet: thumbSrcSetFromVariants(
+          base,
+          thumbVariants,
+          thumbUrl,
+          'path',
+        ),
+        thumbSrcSetAvif: thumbSrcSetFromVariants(
+          base,
+          thumbVariants,
+          null,
+          'pathAvif',
+        ),
         thumbAspect: thumbAspectFromSize(thumbWidth, thumbHeight),
         sharePageUrl: resolveSharePageUrlForUi(
           manifestShareUrl,
@@ -122,9 +172,52 @@ export function useGalleryManifest(): {
           cameras: cameraMap,
           lenses: lensMap,
         }),
-      }),
-    )
-    const collections = buildGalleryCollections(entries, registry)
-    return { entries, equipment: { cameras, lenses }, collections }
+      }
+    },
+  )
+  const collections = buildGalleryCollections(entries, registry)
+  return { entries, equipment: { cameras, lenses }, collections }
+}
+
+export function useGalleryManifest(): GalleryManifestState {
+  const [state, setState] = useState<GalleryManifestState>({ status: 'loading' })
+
+  useEffect(() => {
+    let cancelled = false
+    const base = import.meta.env.BASE_URL
+    const url = `${base}${GALLERY_MANIFEST_FILENAME}`
+
+    ;(async () => {
+      try {
+        const res = await fetch(url, { credentials: 'same-origin' })
+        if (!res.ok) {
+          throw new Error(`${res.status} ${res.statusText}`)
+        }
+        const manifest = (await res.json()) as GalleryManifest
+        if (cancelled) return
+        setState({ status: 'ready', ...manifestToState(manifest, base) })
+      } catch (e) {
+        if (cancelled) return
+        setState({
+          status: 'error',
+          message:
+            e instanceof Error ? e.message : 'Could not load gallery manifest',
+        })
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
+
+  return state
+}
+
+/** Sync resolver when manifest JSON is already available (tests/build). */
+export function galleryEntriesFromManifest(
+  manifest: GalleryManifest,
+  base: string,
+): ReturnType<typeof manifestToState> {
+  return manifestToState(manifest, base)
 }

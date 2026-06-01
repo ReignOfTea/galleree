@@ -1,5 +1,11 @@
 import type { GalleryImageMetaFile } from './galleryMeta'
 
+export type ManifestThumbVariant = {
+  width: number
+  path: string
+  pathAvif?: string
+}
+
 /** Serialized equipment registry entry (paths relative to `gallery/`) */
 export type ManifestEquipmentEntry = {
   slug: string
@@ -15,8 +21,12 @@ export type ManifestImage = {
   file: string
   /** Parsed from `meta/{id}.json` at build time */
   meta: GalleryImageMetaFile
-  /** Relative to `gallery/` when generated, e.g. `thumbs/vacation.jpg` */
+  /** Relative to `gallery/` when generated, e.g. `thumbs/{id}.jpg` (720px) */
   thumb?: string
+  /** Responsive grid widths, e.g. `thumbs/{id}-400.jpg` */
+  thumbVariants?: ManifestThumbVariant[]
+  /** Relative to `gallery/`, e.g. `display/{id}.webp` */
+  display?: string
   /** Thumbnail pixel size (from thumb file, or full image when no thumb). */
   thumbWidth?: number
   thumbHeight?: number
@@ -35,6 +45,8 @@ export type ManifestCollection = {
   description: string | null
   coverImageId: string | null
 }
+
+export const GALLERY_MANIFEST_FILENAME = 'gallery-manifest.json'
 
 export type GalleryManifest = {
   generatedAt: string

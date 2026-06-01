@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  Fragment,
+  memo,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import type { LoadGate } from '../lib/loadGate'
 import { preloadCachedImage } from '../lib/assetCache'
 import type { GalleryEntry } from '../hooks/useGalleryManifest'
@@ -23,7 +30,9 @@ type Props = {
 
 const GRID_TAG_PREVIEW = 2
 
-export function GalleryRow({
+const GRID_IMG_SIZES = '(max-width: 640px) 92vw, (max-width: 1024px) 46vw, 30vw'
+
+function GalleryRowComponent({
   row,
   thumbHeight,
   gate,
@@ -150,12 +159,32 @@ export function GalleryRow({
                   }
                 >
                   {sources[i] ? (
-                    <img
-                      src={sources[i]!}
-                      alt={galleryImageDescription(item)}
-                      decoding="async"
-                      fetchPriority="low"
-                    />
+                    item.thumbSrcSetAvif ? (
+                      <picture>
+                        <source
+                          type="image/avif"
+                          srcSet={item.thumbSrcSetAvif}
+                          sizes={GRID_IMG_SIZES}
+                        />
+                        <img
+                          src={sources[i]!}
+                          srcSet={item.thumbSrcSet ?? undefined}
+                          sizes={GRID_IMG_SIZES}
+                          alt={galleryImageDescription(item)}
+                          decoding="async"
+                          fetchPriority="low"
+                        />
+                      </picture>
+                    ) : (
+                      <img
+                        src={sources[i]!}
+                        srcSet={item.thumbSrcSet ?? undefined}
+                        sizes={GRID_IMG_SIZES}
+                        alt={galleryImageDescription(item)}
+                        decoding="async"
+                        fetchPriority="low"
+                      />
+                    )
                   ) : (
                     <GalleryBlurPlaceholder blurHash={item.blurHash} />
                   )}
@@ -225,3 +254,5 @@ export function GalleryRow({
     </div>
   )
 }
+
+export const GalleryRow = memo(GalleryRowComponent)
