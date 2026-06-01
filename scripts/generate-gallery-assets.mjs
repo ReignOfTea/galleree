@@ -21,12 +21,36 @@ const metaDir = path.join(galleryDir, 'meta')
 const thumbsDir = path.join(galleryDir, 'thumbs')
 const displayDir = path.join(galleryDir, 'display')
 
-const THUMB_WIDTHS = [400, 720, 1080]
-const JPEG_QUALITY = Number(process.env.GALLERY_THUMB_JPEG_QUALITY ?? 82)
-const DISPLAY_MAX_WIDTH = Number(process.env.GALLERY_DISPLAY_MAX_WIDTH ?? 2400)
-const DISPLAY_WEBP_QUALITY = Number(process.env.GALLERY_DISPLAY_WEBP_QUALITY ?? 82)
+const specPath = path.join(root, 'schemas', 'gallery-asset-spec.json')
+const assetSpec = (() => {
+  try {
+    if (fs.existsSync(specPath)) {
+      return JSON.parse(fs.readFileSync(specPath, 'utf8'))
+    }
+  } catch {
+    /* use defaults below */
+  }
+  return null
+})()
+
+const THUMB_WIDTHS = assetSpec?.siteThumbs?.widths ?? [400, 720, 1080]
+const JPEG_QUALITY = Number(
+  process.env.GALLERY_THUMB_JPEG_QUALITY ??
+    assetSpec?.siteThumbs?.jpegQuality ??
+    82,
+)
+const DISPLAY_MAX_WIDTH = Number(
+  process.env.GALLERY_DISPLAY_MAX_WIDTH ?? assetSpec?.display?.maxWidth ?? 2400,
+)
+const DISPLAY_WEBP_QUALITY = Number(
+  process.env.GALLERY_DISPLAY_WEBP_QUALITY ??
+    assetSpec?.display?.webpQuality ??
+    82,
+)
 const ENABLE_AVIF = process.env.GALLERY_AVIF === '1'
-const AVIF_QUALITY = Number(process.env.GALLERY_AVIF_QUALITY ?? 55)
+const AVIF_QUALITY = Number(
+  process.env.GALLERY_AVIF_QUALITY ?? assetSpec?.avif?.quality ?? 55,
+)
 
 const IMAGE_EXT = new Set([
   '.jpg',

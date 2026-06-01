@@ -14,6 +14,10 @@ type Props = {
   rows: UploadRow[]
   registries: GalleryRegistries
   knownTags: readonly string[]
+  /** Shown on empty copyright fields (from site.json footer line). */
+  copyrightPlaceholder?: string
+  selectedIds: ReadonlySet<string>
+  onToggleSelect: (id: string, selected: boolean) => void
   updateRow: (id: string, patch: Partial<UploadRow>) => void
   getDestPreview: (r: UploadRow) => { id: string; file: string } | null
   onOpenRegistryCreate: (request: RegistryModalRequest) => void
@@ -50,6 +54,9 @@ export function PhotoPanels({
   rows,
   registries,
   knownTags,
+  copyrightPlaceholder = "",
+  selectedIds,
+  onToggleSelect,
   updateRow,
   getDestPreview,
   onOpenRegistryCreate,
@@ -64,6 +71,17 @@ export function PhotoPanels({
         return (
           <details key={r.id} className="photo-panel">
             <summary className="photo-panel__summary">
+              <label
+                className="photo-panel__select"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(r.id)}
+                  onChange={(e) => onToggleSelect(r.id, e.target.checked)}
+                  aria-label={`Select ${name}`}
+                />
+              </label>
               <span className="photo-panel__summary-thumb-wrap">
                 <img className="photo-panel__summary-thumb" src={r.previewSrc} alt="" />
               </span>
@@ -83,7 +101,7 @@ export function PhotoPanels({
                   </code>
                 ) : (
                   <span className="muted photo-panel__dest-pending">
-                    Add a title to assign a gallery id
+                    Add a title to assign a gallery file id (stays fixed while you edit)
                   </span>
                 )}
               </span>
@@ -308,6 +326,7 @@ export function PhotoPanels({
                       <input
                         value={r.copyright}
                         onChange={(e) => updateRow(r.id, { copyright: e.target.value })}
+                        placeholder={copyrightPlaceholder || undefined}
                         autoComplete="off"
                       />
                     </label>

@@ -6,6 +6,10 @@ On upload, the app writes each image, `meta/{id}.json`, and local `thumbs/{id}.j
 
 Gallery folder layout, sidecar fields, and equipment registries are documented in the [repository README](../../README.md#gallery-layout).
 
+Derivative sizes (720px preview thumb, multi-width thumbs, display WebP) are defined in [`schemas/gallery-asset-spec.json`](../../schemas/gallery-asset-spec.json). The uploader writes a local 720px JPEG for UI preview only; CI runs `npm run build` for the full set.
+
+**Features:** add files or whole folders (recursive), batch-edit tags/collection/hidden, optional update notice from `uploader-version.json` on your repo branch.
+
 ## GitHub personal access token (clone & push)
 
 The uploader uses Git over HTTPS with a token instead of a password. Create the token on GitHub, then paste it in the app’s first-time setup (or **Edit settings**). The token is stored in the **OS credential store** (e.g. Windows Credential Manager), not in `config.json`.
@@ -40,8 +44,17 @@ Generate the token, then **copy it immediately** (GitHub will not show it again)
 Workflow: `.github/workflows/gallery-uploader-release.yml`.
 
 - **Every push to `main` or `master`** that changes `tools/gallery-uploader/**` builds the Windows app and publishes a **prerelease** on GitHub (tag like `gallery-uploader-v0.1.0-r42`, using `version` from `src-tauri/tauri.conf.json` plus the workflow run number).
-- **Stable release:** bump `version` in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, commit, then  
-  `git tag gallery-uploader-v0.2.0 && git push origin gallery-uploader-v0.2.0`  
-  (tag suffix should match the version you intend to ship.)
+- **Stable release:** use a `gallery-uploader-v*` tag (see below). The app reads `uploader-version.json` on your gallery branch for update notices (`version` must match what you ship in the installer).
+
+**Local publish script** (not in git; copy from your machine’s `local-scripts/`):
+
+```powershell
+.\local-scripts\publish-uploader.ps1              # patch bump, commit, push (prerelease CI)
+.\local-scripts\publish-uploader.ps1 -Stable      # also tag gallery-uploader-vX.Y.Z (stable release)
+.\local-scripts\publish-uploader.ps1 -Minor -Notes "Batch edit and duplicate detection"
+.\local-scripts\publish-uploader.ps1 -DryRun -Patch   # bump files only, no git
+```
+
+The script bumps `src-tauri/tauri.conf.json`, `Cargo.toml`, `package.json`, and `uploader-version.json`, then commits `tools/gallery-uploader/`.
 
 If uploads fail with “Resource not accessible”, set **Settings → Actions → General → Workflow permissions** to **Read and write**.

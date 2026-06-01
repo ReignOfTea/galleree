@@ -3,6 +3,9 @@ import { collectionSlugFromTitle } from "@galleree/gallery-collection"
 import { equipmentSlugFromLabel } from "@galleree/gallery-equipment"
 import { appConvertFileSrc, appPickImageFile } from "../tauriBridge"
 import {
+  loadCollectionForEdit,
+  loadEquipmentForEdit,
+  resolveGalleryAssetPath,
   saveCameraRegistry,
   saveCollectionRegistry,
   saveLensRegistry,
@@ -12,25 +15,34 @@ import { SELECT_NONE } from "../registryTypes"
 
 type Props = {
   kind: RegistryKind
+  editSlug?: string
   registries: GalleryRegistries
   coverCandidates: CoverCandidate[]
   onCreated: (slug: string) => void
   onClose: () => void
 }
 
-const TITLES: Record<RegistryKind, string> = {
+const CREATE_TITLES: Record<RegistryKind, string> = {
   collection: "New collection",
   camera: "New camera",
   lens: "New lens",
 }
 
+const EDIT_TITLES: Record<RegistryKind, string> = {
+  collection: "Edit collection",
+  camera: "Edit camera",
+  lens: "Edit lens",
+}
+
 export function RegistryCreateModal({
   kind,
+  editSlug,
   registries,
   coverCandidates,
   onCreated,
   onClose,
 }: Props) {
+  const isEdit = Boolean(editSlug)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,6 +56,51 @@ export function RegistryCreateModal({
   const [lensSlug, setLensSlug] = useState("")
   const [imagePath, setImagePath] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState("")
+  const [loadingEdit, setLoadingEdit] = useState(isEdit)
+
+  useEffect(() => {
+    if (!editSlug) return
+    let cancelled = false
+    void (async () => {
+      setLoadingEdit(true)
+      setError(null)
+      try {
+        if (kind === "collection") {
+          const data = await loadCollectionForEdit(editSlug)
+          if (cancelled) return
+          setTitle(data.title)
+          setDescription(data.description)
+          setCoverImageId(data.coverImageId ?? "")
+        } else {
+          const data = await loadEquipmentForEdit(kind, editSlug)
+          if (cancelled) return
+          setName(data.name)
+          setMake(data.make)
+          setModel(data.model)
+          setDescription(data.description)
+          setLensSlug(data.lensSlug ?? SELECT_NONE)
+          if (data.imageRelative) {
+            try {
+              const abs = await resolveGalleryAssetPath(data.imageRelative)
+              if (!cancelled) {
+                setImagePath(abs)
+                setImagePreview(appConvertFileSrc(abs))
+              }
+            } catch {
+              /* optional asset missing on disk */
+            }
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setError(String(e))
+      } finally {
+        if (!cancelled) setLoadingEdit(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [editSlug, kind])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,6 +124,7 @@ export function RegistryCreateModal({
   )
 
   const slugExists = useMemo(() => {
+    if (isEdit) return false
     if (kind === "collection" && collectionSlug) {
       return registries.collections.some((c) => c.slug === collectionSlug)
     }
@@ -77,7 +135,7 @@ export function RegistryCreateModal({
       return registries.lenses.some((l) => l.slug === equipmentSlug)
     }
     return false
-  }, [kind, collectionSlug, equipmentSlug, registries])
+  }, [isEdit, kind, collectionSlug, equipmentSlug, registries])
 
   const pickProductImage = async () => {
     setError(null)
@@ -112,6 +170,7 @@ export function RegistryCreateModal({
           throw new Error(`A collection named “${title.trim()}” already exists.`)
         }
         slug = await saveCollectionRegistry({
+          slug: editSlug,
           title: title.trim(),
           description,
           coverImageId: coverImageId || null,
@@ -124,6 +183,7 @@ export function RegistryCreateModal({
           throw new Error(`A camera named “${name.trim()}” already exists.`)
         }
         slug = await saveCameraRegistry({
+          slug: editSlug,
           name: name.trim(),
           make,
           model,
@@ -139,6 +199,7 @@ export function RegistryCreateModal({
           throw new Error(`A lens named “${name.trim()}” already exists.`)
         }
         slug = await saveLensRegistry({
+          slug: editSlug,
           name: name.trim(),
           make,
           model,
@@ -166,7 +227,9 @@ export function RegistryCreateModal({
       />
       <div className="registry-modal-panel">
         <header className="registry-modal-header">
-          <h2 className="registry-modal-title">{TITLES[kind]}</h2>
+          <h2 className="registry-modal-title">
+            {isEdit ? EDIT_TITLES[kind] : CREATE_TITLES[kind]}
+          </h2>
           <button
             type="button"
             className="registry-modal-close"
@@ -179,7 +242,10 @@ export function RegistryCreateModal({
         </header>
 
         <div className="registry-modal-body">
-          {kind === "collection" ? (
+          {loadingEdit ? (
+            <p className="muted">Loading…</p>
+          ) : null}
+          {!loadingEdit && kind === "collection" ? (
             <>
               <label className="field">
                 <span>Title</span>
@@ -191,7 +257,11 @@ export function RegistryCreateModal({
                   autoFocus
                 />
               </label>
-              {collectionSlug ? (
+              {isEdit && editSlug ? (
+                <p className="registry-modal-hint muted">
+                  Slug: <code>{editSlug}</code> (fixed)
+                </p>
+              ) : collectionSlug ? (
                 <p className="registry-modal-hint muted">
                   Slug: <code>{collectionSlug}</code>
                 </p>
@@ -230,7 +300,7 @@ export function RegistryCreateModal({
                 is new.
               </p>
             </>
-          ) : (
+          ) : !loadingEdit ? (
             <>
               <label className="field">
                 <span>Name</span>
@@ -244,7 +314,11 @@ export function RegistryCreateModal({
                   autoFocus
                 />
               </label>
-              {equipmentSlug ? (
+              {isEdit && editSlug ? (
+                <p className="registry-modal-hint muted">
+                  Slug: <code>{editSlug}</code> (fixed)
+                </p>
+              ) : equipmentSlug ? (
                 <p className="registry-modal-hint muted">
                   Slug: <code>{equipmentSlug}</code>
                 </p>
@@ -334,7 +408,7 @@ export function RegistryCreateModal({
                 </p>
               </div>
             </>
-          )}
+          ) : null}
 
           {error ? <p className="registry-modal-error">{error}</p> : null}
         </div>
@@ -347,9 +421,9 @@ export function RegistryCreateModal({
             type="button"
             className="primary"
             onClick={() => void handleSave()}
-            disabled={busy || slugExists}
+            disabled={busy || loadingEdit || slugExists}
           >
-            {busy ? "Saving…" : "Save to gallery project"}
+            {busy ? "Saving…" : isEdit ? "Save changes" : "Save to gallery project"}
           </button>
         </footer>
       </div>

@@ -1,6 +1,6 @@
 [package]
 name = "gallery-uploader"
-version = "0.1.0"
+version = "0.1.1"
 description = "Bulk upload photos to the galleree git repository"
 edition = "2021"
 
@@ -22,4 +22,5 @@ base64 = { version = "0.22", features = ["std"] }
 chrono = "0.4"
 kamadak-exif = "0.6"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "rayon"] }
-blurhash = "0.2"
+sha2 = "0.10"
+ureq = { version = "2.12", default-features = false, features = ["tls"] }

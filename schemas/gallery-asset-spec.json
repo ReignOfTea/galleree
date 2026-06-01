@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Galleree gallery derivative constants",
+  "description": "Shared between scripts/generate-gallery-assets.mjs and tools/gallery-uploader (Rust). Uploader only implements the preview thumb tier locally; CI/build generates the full set.",
+  "version": 1,
+  "uploaderPreviewThumb": {
+    "maxWidth": 720,
+    "jpegQuality": 82,
+    "note": "Single thumbs/{id}.jpg for desktop UI preview; gitignored."
+  },
+  "siteThumbs": {
+    "widths": [400, 720, 1080],
+    "jpegQuality": 82,
+    "note": "thumbs/{id}.jpg (720) plus thumbs/{id}-400.jpg and thumbs/{id}-1080.jpg"
+  },
+  "display": {
+    "maxWidth": 2400,
+    "webpQuality": 82,
+    "note": "display/{id}.webp for lightbox; gitignored; built on CI."
+  },
+  "avif": {
+    "enabledByEnv": "GALLERY_AVIF=1",
+    "quality": 55
+  }
+}

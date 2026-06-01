@@ -9,11 +9,28 @@ use image::codecs::webp::WebPEncoder;
 use image::imageops::FilterType;
 use image::{DynamicImage, ExtendedColorType, GenericImageView, ImageEncoder, ImageFormat};
 use serde::{Deserialize, Serialize};
-use std::io::{BufReader, Cursor};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use url::Url;
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UploadProgressPayload {
+    message: String,
+}
+
+fn emit_upload_progress(app: &tauri::AppHandle, message: impl Into<String>) {
+    let _ = app.emit(
+        "upload-progress",
+        UploadProgressPayload {
+            message: message.into(),
+        },
+    );
+}
 
 const KEYRING_SERVICE: &str = "galleree-gallery-uploader";
 const KEYRING_USER: &str = "github_https_pat";
@@ -75,6 +92,7 @@ pub struct RegistryCollection {
     pub slug: String,
     pub title: String,
     pub description: Option<String>,
+    pub cover_image_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -99,6 +117,59 @@ pub struct GalleryRegistries {
 pub struct GalleryImageRef {
     pub id: String,
     pub title: String,
+}
+
+const DRAFT_SESSION_VERSION: u32 = 1;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftUploadRow {
+    pub id: String,
+    pub source_path: String,
+    pub title: String,
+    pub description: String,
+    pub tags: String,
+    pub location: String,
+    pub capture_date: String,
+    pub capture_date_time_iso: String,
+    pub collection_select: String,
+    pub collection_set_cover: bool,
+    pub camera_select: String,
+    pub camera_custom: String,
+    pub lens_select: String,
+    pub lens_custom: String,
+    pub alt: String,
+    pub hidden: bool,
+    pub sort_order: String,
+    pub copyright: String,
+    pub extension: String,
+    pub dest_filename: String,
+    pub edit_existing_id: Option<String>,
+    pub preserve_uploaded_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftSession {
+    pub version: u32,
+    pub repo_url: String,
+    pub branch: String,
+    pub commit_message: String,
+    pub selected_row_ids: Vec<String>,
+    pub rows: Vec<DraftUploadRow>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadDraftSessionResult {
+    pub session: Option<DraftSession>,
+    pub skipped_paths: Vec<String>,
+}
+
+fn draft_session_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("draft-session.json"))
 }
 
 fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -132,6 +203,86 @@ fn output_status(cmd: &mut Command) -> Result<String, String> {
         return Err(format!("git exited with {}: {}", out.status, detail));
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+fn git_worktree_status(workdir: &Path) -> String {
+    let mut cmd = git_command(workdir);
+    cmd.args(["status", "--short", "-b"]);
+    match cmd.output() {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let mut text = stdout.trim().to_string();
+            if !stderr.trim().is_empty() {
+                if !text.is_empty() {
+                    text.push('\n');
+                }
+                text.push_str(stderr.trim());
+            }
+            if text.is_empty() {
+                "(git status produced no output)".to_string()
+            } else {
+                text
+            }
+        }
+        Err(e) => format!("(could not run git status: {e})"),
+    }
+}
+
+fn format_git_failure(workdir: &Path, step: &str, detail: String) -> String {
+    format!(
+        "Git {step} failed.\n\n{detail}\n\n--- git status ---\n{}\n\nFix the gallery project folder (resolve conflicts, commit, or stash), then try again.",
+        git_worktree_status(workdir)
+    )
+}
+
+/// Pull with autostash so local edits do not block publish (matches site deploy.ps1).
+fn git_pull_rebase_autostash(
+    workdir: &Path,
+    extra: &[String; 2],
+    branch: &str,
+) -> Result<(), String> {
+    let mut pull = git_command(workdir);
+    pull.arg(&extra[0])
+        .arg(&extra[1])
+        .args(["pull", "--rebase", "--autostash", "origin", branch]);
+    if let Err(e) = output_status(&mut pull) {
+        return Err(format_git_failure(workdir, "pull --rebase", e));
+    }
+    Ok(())
+}
+
+/// True when `.git/HEAD` exists so `git pull` / `git checkout` can run.
+fn is_valid_git_worktree(workdir: &Path) -> bool {
+    workdir.join(".git").join("HEAD").is_file()
+}
+
+fn reset_workdir(workdir: &Path) -> Result<(), String> {
+    if !workdir.exists() {
+        return Ok(());
+    }
+    std::fs::remove_dir_all(workdir).map_err(|e| {
+        format!(
+            "Could not reset the gallery project folder at {} (close the uploader and any Explorer windows there, then try Sync again): {e}",
+            workdir.display()
+        )
+    })
+}
+
+/// Restore tracked site files when the worktree is missing them (e.g. broken partial clone).
+fn restore_tracked_public_files(workdir: &Path) -> Result<(), String> {
+    if !is_valid_git_worktree(workdir) {
+        return Ok(());
+    }
+    for rel in ["public/site.json", "public/logo.svg", "public/CNAME"] {
+        if workdir.join(rel).is_file() {
+            continue;
+        }
+        let mut checkout = git_command(workdir);
+        checkout.args(["checkout", "HEAD", "--", rel]);
+        let _ = checkout.output();
+    }
+    Ok(())
 }
 
 fn authed_git_extra_args(pat: &str) -> Result<[String; 2], String> {
@@ -183,6 +334,97 @@ fn gallery_root_from_config(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 fn is_gallery_image_id(stem: &str) -> bool {
     stem.len() == 32 && stem.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn sha256_hex_file(path: &Path) -> Result<String, String> {
+    let mut file = std::fs::File::open(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf).map_err(|e| format!("read {}: {e}", path.display()))?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+#[derive(Debug, Clone)]
+struct GalleryHashHit {
+    id: String,
+    title: String,
+    filename: String,
+}
+
+fn gallery_title_for_id(meta_dir: &Path, id: &str) -> String {
+    let meta_path = meta_dir.join(format!("{id}.json"));
+    if meta_path.is_file() {
+        if let Ok(raw) = std::fs::read_to_string(&meta_path) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(t) = v.get("title").and_then(|x| x.as_str()) {
+                    let t = t.trim();
+                    if !t.is_empty() {
+                        return t.to_string();
+                    }
+                }
+            }
+        }
+    }
+    id.to_string()
+}
+
+fn index_gallery_content_hashes(gallery_dir: &Path) -> Result<HashMap<String, GalleryHashHit>, String> {
+    let meta_dir = gallery_dir.join("meta");
+    let mut index = HashMap::new();
+    for entry in std::fs::read_dir(gallery_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !is_gallery_image_id(stem) {
+            continue;
+        }
+        let id = stem.to_lowercase();
+        let filename = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(stem)
+            .to_string();
+        let hash = sha256_hex_file(&path)?;
+        let title = gallery_title_for_id(&meta_dir, &id);
+        index.insert(
+            hash,
+            GalleryHashHit {
+                id,
+                title,
+                filename,
+            },
+        );
+    }
+    Ok(index)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathDuplicate {
+    pub path: String,
+    pub match_kind: String,
+    pub existing_id: Option<String>,
+    pub existing_title: String,
+    pub existing_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckDuplicatePathsResult {
+    pub ok_paths: Vec<String>,
+    pub duplicates: Vec<PathDuplicate>,
+    pub gallery_image_count: usize,
 }
 
 fn is_safe_registry_asset_path(relative: &str) -> bool {
@@ -240,10 +482,17 @@ fn read_registry_collections(dir: &Path) -> Result<Vec<RegistryCollection>, Stri
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(str::to_string);
+        let cover_image_id = v
+            .get("coverImageId")
+            .and_then(|x| x.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string);
         out.push(RegistryCollection {
             slug,
             title: title.to_string(),
             description,
+            cover_image_id,
         });
     }
     out.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
@@ -307,6 +556,61 @@ fn ensure_galleree_layout(workdir: &Path) -> Result<(), String> {
             "This checkout has no public/gallery folder. Point the tool at your galleree site repo."
                 .into(),
         );
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn load_draft_session(app: tauri::AppHandle) -> Result<LoadDraftSessionResult, String> {
+    let p = draft_session_path(&app)?;
+    if !p.is_file() {
+        return Ok(LoadDraftSessionResult {
+            session: None,
+            skipped_paths: vec![],
+        });
+    }
+    let raw = std::fs::read_to_string(&p).map_err(|e| e.to_string())?;
+    let mut session: DraftSession = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    if session.version != DRAFT_SESSION_VERSION {
+        let _ = std::fs::remove_file(&p);
+        return Ok(LoadDraftSessionResult {
+            session: None,
+            skipped_paths: vec![],
+        });
+    }
+    let mut kept = Vec::new();
+    let mut skipped = Vec::new();
+    for row in session.rows.drain(..) {
+        if PathBuf::from(&row.source_path).is_file() {
+            kept.push(row);
+        } else {
+            skipped.push(row.source_path);
+        }
+    }
+    session.rows = kept;
+    let empty = session.rows.is_empty() && session.commit_message.trim().is_empty();
+    Ok(LoadDraftSessionResult {
+        session: if empty { None } else { Some(session) },
+        skipped_paths: skipped,
+    })
+}
+
+#[tauri::command]
+fn save_draft_session(app: tauri::AppHandle, mut session: DraftSession) -> Result<(), String> {
+    session.version = DRAFT_SESSION_VERSION;
+    if session.rows.is_empty() && session.commit_message.trim().is_empty() {
+        return clear_draft_session(app);
+    }
+    let p = draft_session_path(&app)?;
+    let json = serde_json::to_string_pretty(&session).map_err(|e| e.to_string())?;
+    std::fs::write(&p, format!("{json}\n")).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_draft_session(app: tauri::AppHandle) -> Result<(), String> {
+    let p = draft_session_path(&app)?;
+    if p.is_file() {
+        std::fs::remove_file(&p).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -450,19 +754,20 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
     })?;
     let workdir = PathBuf::from(&cfg.workdir);
     let branch = cfg.branch.trim();
+    let url = https_url_with_pat(&cfg.repo_url, &pat)?;
+    let extra = authed_git_extra_args(&pat)?;
 
-    if workdir.join(".git").is_dir() {
-        ensure_galleree_layout(&workdir)?;
-        let extra = authed_git_extra_args(&pat)?;
-        let mut pull = git_command(&workdir);
-        pull.arg(&extra[0])
-            .arg(&extra[1])
-            .args(["pull", "--rebase", "origin", branch]);
-        output_status(&mut pull)?;
-        return Ok("Repository is ready (pulled latest).".into());
+    // Interrupted clone leaves a `.git` folder without HEAD; git commands then fail silently from the UI’s perspective.
+    if workdir.join(".git").exists() && !is_valid_git_worktree(&workdir) {
+        reset_workdir(&workdir)?;
     }
 
-    let url = https_url_with_pat(&cfg.repo_url, &pat)?;
+    if is_valid_git_worktree(&workdir) {
+        ensure_galleree_layout(&workdir)?;
+        git_pull_rebase_autostash(&workdir, &extra, branch)?;
+        restore_tracked_public_files(&workdir)?;
+        return Ok("Repository is ready (pulled latest).".into());
+    }
 
     if !workdir.exists() {
         let parent = workdir
@@ -475,18 +780,39 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
             use std::os::windows::process::CommandExt;
             clone.creation_flags(0x0800_0000);
         }
-        clone.args(["clone", "--branch", branch, "--", &url]).arg(&workdir);
+        clone
+            .arg(&extra[0])
+            .arg(&extra[1])
+            .args(["clone", "--branch", branch, "--", &url])
+            .arg(&workdir);
         output_status(&mut clone)?;
         ensure_galleree_layout(&workdir)?;
+        restore_tracked_public_files(&workdir)?;
         return Ok("Repository cloned.".into());
     }
 
     let mut read_dir = std::fs::read_dir(&workdir).map_err(|e| e.to_string())?;
     if read_dir.next().is_some() {
-        return Err(
-            "Work directory exists but is not a git clone. Delete that folder and try again, or change the repository URL."
-                .into(),
-        );
+        reset_workdir(&workdir)?;
+        let parent = workdir
+            .parent()
+            .ok_or("work directory must have a parent folder")?;
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        let mut clone = Command::new("git");
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            clone.creation_flags(0x0800_0000);
+        }
+        clone
+            .arg(&extra[0])
+            .arg(&extra[1])
+            .args(["clone", "--branch", branch, "--", &url])
+            .arg(&workdir);
+        output_status(&mut clone)?;
+        ensure_galleree_layout(&workdir)?;
+        restore_tracked_public_files(&workdir)?;
+        return Ok("Repository cloned (replaced invalid work folder).".into());
     }
 
     let mut clone = Command::new("git");
@@ -497,9 +823,12 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
     }
     clone
         .current_dir(&workdir)
+        .arg(&extra[0])
+        .arg(&extra[1])
         .args(["clone", "--branch", branch, "--", &url, "."]);
     output_status(&mut clone)?;
     ensure_galleree_layout(&workdir)?;
+    restore_tracked_public_files(&workdir)?;
     Ok("Repository cloned.".into())
 }
 
@@ -518,6 +847,7 @@ const TARGET_STAGED_BYTES: u64 = SAFE_MAX_STAGED_BYTES;
 
 const MIN_LONG_EDGE: u32 = 960;
 
+/// Keep in sync with `schemas/gallery-asset-spec.json` → `uploaderPreviewThumb`.
 const THUMB_MAX_WIDTH: u32 = 720;
 const THUMB_JPEG_QUALITY: u8 = 82;
 
@@ -539,29 +869,6 @@ fn write_gallery_thumb(source: &Path, thumb_path: &Path) -> Result<(), String> {
     }
     std::fs::write(thumb_path, &buf).map_err(|e| e.to_string())?;
     Ok(())
-}
-
-fn blur_hash_from_image(path: &Path) -> Option<String> {
-    let img = image::open(path).ok()?;
-    let thumb = img.thumbnail(32, 32);
-    let rgba = thumb.to_rgba8();
-    let (w, h) = rgba.dimensions();
-    blurhash::encode(4, 4, w, h, rgba.as_raw()).ok()
-}
-
-fn meta_json_with_blur_hash(json: &str, image_path: &Path) -> String {
-    let Ok(mut value) = serde_json::from_str::<serde_json::Value>(json) else {
-        return json.to_string();
-    };
-    if let Some(hash) = blur_hash_from_image(image_path) {
-        if let Some(obj) = value.as_object_mut() {
-            obj.insert("blurHash".to_string(), serde_json::Value::String(hash));
-        }
-    }
-    match serde_json::to_string_pretty(&value) {
-        Ok(s) => format!("{s}\n"),
-        Err(_) => json.to_string(),
-    }
 }
 
 fn resize_to_max_side(img: &DynamicImage, max_side: u32) -> DynamicImage {
@@ -723,6 +1030,103 @@ fn validate_dest_filename(name: &str) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+#[tauri::command]
+fn check_duplicate_paths(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+    queued_paths: Vec<String>,
+) -> Result<CheckDuplicatePathsResult, String> {
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let gallery_index = index_gallery_content_hashes(&gallery_dir)?;
+    let gallery_image_count = gallery_index.len();
+
+    enum SeenKind {
+        Queue,
+        Batch,
+    }
+
+    struct SeenEntry {
+        kind: SeenKind,
+        label: String,
+    }
+
+    let mut seen: HashMap<String, SeenEntry> = HashMap::new();
+
+    for q in &queued_paths {
+        let qpath = PathBuf::from(q);
+        if !qpath.is_file() {
+            continue;
+        }
+        let hash = sha256_hex_file(&qpath)?;
+        let label = qpath
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(q.as_str())
+            .to_string();
+        seen.insert(hash, SeenEntry {
+            kind: SeenKind::Queue,
+            label,
+        });
+    }
+
+    let mut ok_paths = Vec::new();
+    let mut duplicates = Vec::new();
+
+    for path in paths {
+        let p = PathBuf::from(&path);
+        if !p.is_file() {
+            continue;
+        }
+        let hash = sha256_hex_file(&p)?;
+        let name = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(path.as_str())
+            .to_string();
+
+        if let Some(hit) = gallery_index.get(&hash) {
+            duplicates.push(PathDuplicate {
+                path,
+                match_kind: "gallery".into(),
+                existing_id: Some(hit.id.clone()),
+                existing_title: hit.title.clone(),
+                existing_path: hit.filename.clone(),
+            });
+            continue;
+        }
+
+        if let Some(prev) = seen.get(&hash) {
+            let (match_kind, existing_id, existing_title, existing_path) = match prev.kind {
+                SeenKind::Queue => ("queue", None, prev.label.clone(), prev.label.clone()),
+                SeenKind::Batch => ("batch", None, prev.label.clone(), prev.label.clone()),
+            };
+            duplicates.push(PathDuplicate {
+                path,
+                match_kind: match_kind.into(),
+                existing_id,
+                existing_title,
+                existing_path,
+            });
+            continue;
+        }
+
+        seen.insert(
+            hash,
+            SeenEntry {
+                kind: SeenKind::Batch,
+                label: name,
+            },
+        );
+        ok_paths.push(path);
+    }
+
+    Ok(CheckDuplicatePathsResult {
+        ok_paths,
+        duplicates,
+        gallery_image_count,
+    })
 }
 
 #[tauri::command]
@@ -933,9 +1337,26 @@ fn site_json_path(workdir: &Path) -> PathBuf {
 #[tauri::command]
 fn read_site_json(app: tauri::AppHandle) -> Result<String, String> {
     let cfg = load_config(app)?.ok_or("not configured")?;
-    let path = site_json_path(&PathBuf::from(&cfg.workdir));
+    let workdir = PathBuf::from(&cfg.workdir);
+    if workdir.join(".git").exists() && !is_valid_git_worktree(&workdir) {
+        return Err(format!(
+            "The gallery project folder has a broken git checkout (often after an interrupted sync).\nPath: {}\nClick “Sync gallery project” to repair it.",
+            workdir.display()
+        ));
+    }
+    if !is_valid_git_worktree(&workdir) {
+        return Err("Gallery project not cloned yet — click “Sync gallery project” first.".into());
+    }
+    let path = site_json_path(&workdir);
     if !path.is_file() {
-        return Ok("{}".into());
+        restore_tracked_public_files(&workdir)?;
+    }
+    if !path.is_file() {
+        return Err(format!(
+            "public/site.json not found in the local copy.\nPath: {}\nSync the gallery project, or add site.json on branch “{}” in the repo.",
+            path.display(),
+            cfg.branch.trim()
+        ));
     }
     std::fs::read_to_string(&path).map_err(|e| e.to_string())
 }
@@ -989,6 +1410,37 @@ fn write_registry_asset(
 }
 
 #[tauri::command]
+fn read_gallery_registry_file(app: tauri::AppHandle, relative_path: String) -> Result<String, String> {
+    let relative = relative_path.trim().replace('\\', "/");
+    if !is_safe_registry_relative_path(&relative) {
+        return Err("registry path must be meta/collections|cameras|lenses/{slug}.json".into());
+    }
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let path = gallery_dir.join(&relative);
+    if !path.is_file() {
+        return Err(format!("registry file not found: {relative}"));
+    }
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn resolve_gallery_relative_path(
+    app: tauri::AppHandle,
+    relative_path: String,
+) -> Result<String, String> {
+    let relative = relative_path.trim().replace('\\', "/");
+    if relative.contains("..") || relative.contains('\\') {
+        return Err("invalid relative path".into());
+    }
+    let gallery_dir = gallery_root_from_config(&app)?;
+    let path = gallery_dir.join(&relative);
+    if !path.is_file() {
+        return Err(format!("file not found: {relative}"));
+    }
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
 fn write_gallery_registry_file(
     app: tauri::AppHandle,
     relative_path: String,
@@ -1014,12 +1466,23 @@ fn write_gallery_registry_file(
     Ok(())
 }
 
-#[tauri::command]
-fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<Vec<String>, String> {
-    let gallery_dir = gallery_root_from_config(&app)?;
+fn stage_gallery_files_blocking(
+    app: &tauri::AppHandle,
+    items: Vec<StageItem>,
+) -> Result<Vec<String>, String> {
+    let gallery_dir = gallery_root_from_config(app)?;
 
     let mut copied = Vec::new();
-    for it in items {
+    let total = items.len();
+    for (index, it) in items.into_iter().enumerate() {
+        if total > 1 {
+            emit_upload_progress(
+                app,
+                format!("Copying photo {} of {} into gallery project…", index + 1, total),
+            );
+        } else {
+            emit_upload_progress(app, "Copying photo into gallery project…");
+        }
         validate_dest_filename(&it.dest_filename)?;
         let src = PathBuf::from(&it.source_path);
         if !src.is_file() {
@@ -1061,8 +1524,12 @@ fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<V
             let meta_dir = gallery_dir.join("meta");
             std::fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
             let meta_path = meta_dir.join(format!("{stem}.json"));
-            let enriched = meta_json_with_blur_hash(json, &dest);
-            std::fs::write(&meta_path, enriched.as_bytes())
+            let body = if json.ends_with('\n') {
+                json.clone()
+            } else {
+                format!("{json}\n")
+            };
+            std::fs::write(&meta_path, body.as_bytes())
                 .map_err(|e| format!("write meta/{stem}.json: {e}"))?;
 
             let thumbs_dir = gallery_dir.join("thumbs");
@@ -1076,23 +1543,32 @@ fn stage_gallery_files(app: tauri::AppHandle, items: Vec<StageItem>) -> Result<V
 }
 
 #[tauri::command]
-fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String, String> {
-    let cfg = load_config(app)?.ok_or("not configured")?;
+async fn stage_gallery_files(
+    app: tauri::AppHandle,
+    items: Vec<StageItem>,
+) -> Result<Vec<String>, String> {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || stage_gallery_files_blocking(&app, items))
+        .await
+        .map_err(|e| format!("copy task failed: {e}"))?
+}
+
+fn git_commit_and_push_blocking(app: &tauri::AppHandle, message: &str) -> Result<String, String> {
+    let cfg = load_config(app.clone())?.ok_or("not configured")?;
     let pat = pat_entry()?.get_password().map_err(|_| "missing PAT")?;
     let workdir = PathBuf::from(&cfg.workdir);
     let branch = cfg.branch.trim();
-    if !workdir.join(".git").is_dir() {
-        return Err("not a git repository — prepare the clone first".into());
+    if !is_valid_git_worktree(&workdir) {
+        return Err("not a git repository — click “Sync gallery project” first".into());
     }
 
     let extra = authed_git_extra_args(&pat)?;
 
-    let mut pull = git_command(&workdir);
-    pull.arg(&extra[0])
-        .arg(&extra[1])
-        .args(["pull", "--rebase", "origin", branch]);
-    output_status(&mut pull)?;
+    emit_upload_progress(app, "Pulling latest from GitHub…");
+    git_pull_rebase_autostash(&workdir, &extra, branch)?;
+    restore_tracked_public_files(&workdir)?;
 
+    emit_upload_progress(app, "Staging files for commit…");
     // Originals and meta under public/gallery/ are tracked; thumbs/ and display/ are gitignored build output.
     let mut add_paths = vec!["public/gallery"];
     for rel in ["public/site.json", "public/logo.svg", "public/CNAME"] {
@@ -1118,8 +1594,9 @@ fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String,
         );
     }
 
+    emit_upload_progress(app, "Creating commit…");
     let mut commit = git_command(&workdir);
-    commit.args(["commit", "-m", &message]);
+    commit.args(["commit", "-m", message]);
     let commit_out = output_status(&mut commit);
     if let Err(e) = commit_out {
         if e.contains("nothing to commit") {
@@ -1128,12 +1605,141 @@ fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String,
         return Err(e);
     }
 
+    emit_upload_progress(app, "Pushing to GitHub…");
     let mut push = git_command(&workdir);
     push.arg(&extra[0])
         .arg(&extra[1])
         .args(["push", "origin", &format!("HEAD:{branch}")]);
-    output_status(&mut push)?;
+    if let Err(e) = output_status(&mut push) {
+        return Err(format_git_failure(&workdir, "push", e));
+    }
     Ok("Committed and pushed.".into())
+}
+
+#[tauri::command]
+async fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String, String> {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || git_commit_and_push_blocking(&app, &message))
+        .await
+        .map_err(|e| format!("publish task failed: {e}"))?
+}
+
+fn is_allowed_image_path(path: &Path) -> bool {
+    let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+        return false;
+    };
+    let ext = ext.to_ascii_lowercase();
+    ALLOWED_EXT.iter().any(|allowed| *allowed == ext)
+}
+
+fn collect_images_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+    for entry in std::fs::read_dir(dir).map_err(|e| format!("read {}: {e}", dir.display()))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_images_recursive(&path, out)?;
+        } else if path.is_file() && is_allowed_image_path(&path) {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn list_images_in_directory(dir: String) -> Result<Vec<String>, String> {
+    let root = PathBuf::from(dir.trim());
+    if !root.is_dir() {
+        return Err(format!("not a directory: {}", root.display()));
+    }
+    let mut paths = Vec::new();
+    collect_images_recursive(&root, &mut paths)?;
+    paths.sort();
+    Ok(paths
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect())
+}
+
+fn raw_uploader_version_url(repo_url: &str, branch: &str) -> Result<String, String> {
+    let u = Url::parse(repo_url.trim()).map_err(|e| format!("invalid repo URL: {e}"))?;
+    let host = u.host_str().unwrap_or("");
+    if host != "github.com" && host != "www.github.com" {
+        return Err("update check only supports github.com HTTPS repo URLs".into());
+    }
+    let segments: Vec<&str> = u
+        .path()
+        .trim_matches('/')
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .collect();
+    if segments.len() < 2 {
+        return Err("repo URL must look like https://github.com/owner/repo".into());
+    }
+    let owner = segments[0];
+    let repo = segments[1].trim_end_matches(".git");
+    let branch = branch.trim();
+    Ok(format!(
+        "https://raw.githubusercontent.com/{owner}/{repo}/{branch}/tools/gallery-uploader/uploader-version.json"
+    ))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckResult {
+    pub current_version: String,
+    pub latest_version: Option<String>,
+    pub download_url: Option<String>,
+    pub notes: Option<String>,
+    pub update_available: bool,
+}
+
+#[tauri::command]
+fn check_for_app_update(app: tauri::AppHandle) -> Result<UpdateCheckResult, String> {
+    let current = app.package_info().version.to_string();
+    let cfg = match load_config(app)? {
+        Some(c) => c,
+        None => {
+            return Ok(UpdateCheckResult {
+                current_version: current,
+                latest_version: None,
+                download_url: None,
+                notes: None,
+                update_available: false,
+            });
+        }
+    };
+    let url = raw_uploader_version_url(&cfg.repo_url, &cfg.branch)?;
+    let body = ureq::get(&url)
+        .call()
+        .map_err(|e| format!("could not fetch version info: {e}"))?
+        .into_string()
+        .map_err(|e| e.to_string())?;
+    let value: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("invalid version JSON: {e}"))?;
+    let latest = value
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let download_url = value
+        .get("downloadUrl")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let notes = value
+        .get("notes")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let update_available = latest
+        .as_ref()
+        .map(|l| l != &current)
+        .unwrap_or(false);
+    Ok(UpdateCheckResult {
+        current_version: current,
+        latest_version: latest,
+        download_url,
+        notes,
+        update_available,
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1142,6 +1748,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             load_config,
+            load_draft_session,
+            save_draft_session,
+            clear_draft_session,
             save_config,
             save_pat,
             has_pat,
@@ -1155,10 +1764,15 @@ pub fn run() {
             get_gallery_photo_for_edit,
             read_site_json,
             write_site_json,
+            read_gallery_registry_file,
+            resolve_gallery_relative_path,
             write_gallery_registry_file,
             write_registry_asset,
             stage_gallery_files,
             git_commit_and_push,
+            list_images_in_directory,
+            check_duplicate_paths,
+            check_for_app_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

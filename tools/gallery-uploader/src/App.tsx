@@ -2,6 +2,7 @@ import {
   appConvertFileSrc,
   appInvoke,
   appOpenFiles,
+  appOpenFolder,
   isTauri,
   listenDragDropEvents,
   TAURI_REQUIRED_MESSAGE,
@@ -9,11 +10,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   galleryMetaFromUploadFields,
+  isValidGalleryImageId,
+  normalizeImageExtension,
   randomGalleryImageFilename,
   serializeGalleryMeta,
 } from "@galleree/gallery-meta"
 import { isAllowedImagePath, normalizeExtensionFromPath } from "./imageExtensions"
 import { RegistryCreateModal } from "./components/RegistryCreateModal"
+import { RegistryListsPanel } from "./components/RegistryListsPanel"
 import { PhotoPanels } from "./PhotoPanels"
 import {
   fetchGalleryImages,
@@ -23,7 +27,22 @@ import {
 import { applyImageHints } from "./lib/applyImageHints"
 import { uploadRowFromGalleryEdit } from "./lib/galleryEditRow"
 import { normalizeKnownTags, parseTagList } from "./lib/tagSuggest"
+import { BatchEditBar } from "./components/BatchEditBar"
 import { SiteConfigPanel } from "./components/SiteConfigPanel"
+import { titleFromFilename } from "./lib/titleFromFilename"
+import { fetchSiteCopyrightDefault } from "./lib/siteCopyrightDefault"
+import {
+  formatDuplicateSkipMessage,
+  type CheckDuplicatePathsResult,
+} from "./lib/duplicatePaths"
+import {
+  buildDraftSession,
+  clearDraftSession,
+  draftRowToUpload,
+  formatDraftRestoreMessage,
+  loadDraftSession,
+  saveDraftSession,
+} from "./lib/draftSession"
 import {
   resolveCameraValue,
   resolveCollectionSlug,
@@ -93,10 +112,17 @@ function destPreviewForRow(
     return { id: r.editExistingId, file: r.destFilename }
   }
   if (!r.title.trim()) return null
+  const ext = normalizeImageExtension(r.extension)
+  if (isValidGalleryImageId(r.destId)) {
+    const file = `${r.destId}${ext}`
+    if (!takenNames.has(file.toLowerCase())) {
+      return { id: r.destId, file }
+    }
+  }
   return randomGalleryImageFilename(r.extension, takenNames)
 }
 
-function newRowFromPath(path: string): UploadRow {
+function newRowFromPath(path: string, copyrightDefault = ""): UploadRow {
   return {
     id: crypto.randomUUID(),
     sourcePath: path,
@@ -116,7 +142,7 @@ function newRowFromPath(path: string): UploadRow {
     alt: "",
     hidden: false,
     sortOrder: "",
-    copyright: "",
+    copyright: copyrightDefault,
     extension: normalizeExtensionFromPath(path),
     destId: "",
     destFilename: "",
@@ -137,6 +163,9 @@ export default function App() {
   const [repoPreparing, setRepoPreparing] = useState(false)
   const [dragOverWindow, setDragOverWindow] = useState(false)
   const [rows, setRows] = useState<UploadRow[]>([])
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set())
+  const [updateNotice, setUpdateNotice] = useState<string | null>(null)
+  const [repoSyncKey, setRepoSyncKey] = useState(0)
   const [registries, setRegistries] = useState<GalleryRegistries>({
     collections: [],
     cameras: [],
@@ -152,6 +181,14 @@ export default function App() {
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const repoPrepareLock = useRef(false)
   const uploadBusyRef = useRef(false)
+  const defaultCopyrightRef = useRef("")
+  const [copyrightPlaceholder, setCopyrightPlaceholder] = useState("")
+  const persistReadyRef = useRef(false)
+  const restoringDraftRef = useRef(false)
+  const selectedRowIdsKey = useMemo(
+    () => [...selectedRowIds].sort().join("\u0001"),
+    [selectedRowIds],
+  )
 
   const allTitlesOk = useMemo(
     () => rows.length > 0 && rows.every((r) => r.title.trim().length > 0),
@@ -246,13 +283,116 @@ export default function App() {
     void load()
   }, [load])
 
+  const refreshSiteCopyrightDefault = useCallback(async () => {
+    const value = await fetchSiteCopyrightDefault()
+    defaultCopyrightRef.current = value
+    setCopyrightPlaceholder(value)
+  }, [])
+
   useEffect(() => {
     if (config) {
       void refreshRegistries()
       void loadGalleryTags()
       void loadGalleryImages()
+      void refreshSiteCopyrightDefault()
+      setRepoSyncKey((k) => k + 1)
     }
-  }, [config, refreshRegistries, loadGalleryTags, loadGalleryImages])
+  }, [config, refreshRegistries, loadGalleryTags, loadGalleryImages, refreshSiteCopyrightDefault])
+
+  useEffect(() => {
+    if (!config) return
+    void refreshSiteCopyrightDefault()
+  }, [config, repoSyncKey, refreshSiteCopyrightDefault])
+
+  useEffect(() => {
+    if (!config || !isTauri()) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const info = await appInvoke<{
+          currentVersion: string
+          latestVersion: string | null
+          downloadUrl: string | null
+          notes: string | null
+          updateAvailable: boolean
+        }>("check_for_app_update")
+        if (cancelled || !info.updateAvailable || !info.latestVersion) return
+        const url = info.downloadUrl ?? "GitHub Releases"
+        setUpdateNotice(
+          `Update available: v${info.latestVersion} (you have v${info.currentVersion}). Download from ${url}.`,
+        )
+      } catch {
+        /* offline or non-GitHub repo — ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [config])
+
+  const clearPersistedDraft = useCallback(async () => {
+    try {
+      await clearDraftSession()
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const restoreDraft = useCallback(async () => {
+    if (!config) return
+    restoringDraftRef.current = true
+    persistReadyRef.current = false
+    try {
+      const { session, skippedPaths } = await loadDraftSession()
+      if (
+        !session ||
+        session.repoUrl !== config.repoUrl ||
+        session.branch !== config.branch
+      ) {
+        return
+      }
+      const restored = session.rows.map(draftRowToUpload)
+      setRows(restored)
+      setCommitMessage(session.commitMessage)
+      const ids = new Set(restored.map((r) => r.id))
+      setSelectedRowIds(
+        new Set(session.selectedRowIds.filter((id) => ids.has(id))),
+      )
+      const msg = formatDraftRestoreMessage(restored.length, skippedPaths)
+      if (msg) setStatus(msg)
+    } catch {
+      /* corrupt or missing draft file */
+    } finally {
+      restoringDraftRef.current = false
+      persistReadyRef.current = true
+    }
+  }, [config])
+
+  useEffect(() => {
+    if (!config) {
+      persistReadyRef.current = false
+      return
+    }
+    void restoreDraft()
+  }, [config?.repoUrl, config?.branch, restoreDraft])
+
+  useEffect(() => {
+    if (!config || !persistReadyRef.current || restoringDraftRef.current) return
+    const timer = window.setTimeout(() => {
+      void saveDraftSession(
+        buildDraftSession(
+          config.repoUrl,
+          config.branch,
+          rowsRef.current,
+          commitMessage,
+          selectedRowIds,
+        ),
+      ).catch(() => {
+        /* ignore */
+      })
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [rows, commitMessage, selectedRowIdsKey, config])
 
   const needsSetup = config === null
 
@@ -267,9 +407,37 @@ export default function App() {
     setStatus(null)
     setErrorDetail(null)
     try {
+      let pathsToAdd = filtered
+      let duplicateNote = ""
+      if (config) {
+        try {
+          const dup = await appInvoke<CheckDuplicatePathsResult>("check_duplicate_paths", {
+            paths: filtered,
+            queuedPaths: rowsRef.current.map((r) => r.sourcePath),
+          })
+          pathsToAdd = dup.okPaths
+          if (dup.duplicates.length > 0) {
+            duplicateNote = formatDuplicateSkipMessage(dup.duplicates)
+          }
+        } catch (e) {
+          setStatus(
+            `Could not check for duplicates (${String(e)}). Add files anyway, or sync the gallery project and retry.`,
+          )
+          return
+        }
+      }
+
+      if (pathsToAdd.length === 0) {
+        setStatus(
+          duplicateNote || "Every selected file is already in the gallery or the upload list.",
+        )
+        return
+      }
+
       const nextRows: UploadRow[] = []
-      for (const p of filtered) {
-        const row = newRowFromPath(p)
+      const copyrightDefault = defaultCopyrightRef.current
+      for (const p of pathsToAdd) {
+        const row = newRowFromPath(p, copyrightDefault)
         const hints = await appInvoke<{
           description: string | null
           dateTimeOriginalIso: string | null
@@ -288,6 +456,9 @@ export default function App() {
           },
           registries,
         )
+        if (!row.title.trim()) {
+          row.title = titleFromFilename(p)
+        }
         nextRows.push(row)
       }
       const have = new Set(rowsRef.current.map((x) => x.sourcePath))
@@ -298,14 +469,17 @@ export default function App() {
       if (add.length === 0 && nextRows.length > 0) {
         setStatus("Those files are already in the list.")
       } else if (add.length > 0) {
-        setStatus(`Added ${add.length} file(s). Enter a title for each, then upload when you are ready.`)
+        const added = `Added ${add.length} file(s). Enter a title for each, then upload when you are ready.`
+        setStatus(duplicateNote ? `${added}\n\n${duplicateNote}` : added)
+      } else if (duplicateNote) {
+        setStatus(duplicateNote)
       }
     } catch (e) {
       setStatus(String(e))
     } finally {
       setBusy(false)
     }
-  }, [registries.cameras])
+  }, [config, registries.cameras])
 
   useEffect(() => {
     if (!isTauri()) return
@@ -346,6 +520,8 @@ export default function App() {
       }
       await refreshRegistries()
       await loadGalleryTags()
+      await refreshSiteCopyrightDefault()
+      setRepoSyncKey((k) => k + 1)
     } catch (e) {
       const err = String(e)
       if (context === "after-save") {
@@ -357,7 +533,7 @@ export default function App() {
       repoPrepareLock.current = false
       setRepoPreparing(false)
     }
-  }, [refreshRegistries, loadGalleryTags])
+  }, [refreshRegistries, loadGalleryTags, refreshSiteCopyrightDefault])
 
   const saveSettings = async () => {
     setBusy(true)
@@ -390,23 +566,71 @@ export default function App() {
     await ingestPaths(paths)
   }
 
+  const addFolder = async () => {
+    const dir = await appOpenFolder()
+    if (!dir) return
+    setBusy(true)
+    try {
+      const paths = await appInvoke<string[]>("list_images_in_directory", { dir })
+      if (paths.length === 0) {
+        setStatus("No supported images in that folder.")
+        return
+      }
+      await ingestPaths(paths)
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const applyBatchEdit = (patch: {
+    mergeTags?: string
+    collectionSelect?: string
+    hidden?: boolean
+  }) => {
+    const extraTags = patch.mergeTags ? parseTagList(patch.mergeTags) : []
+    setRows((list) =>
+      list.map((r) => {
+        const inScope =
+          selectedRowIds.size === 0 || selectedRowIds.has(r.id)
+        if (!inScope) return r
+        const next: UploadRow = { ...r }
+        if (extraTags.length > 0) {
+          next.tags = normalizeKnownTags([...parseTagList(r.tags), ...extraTags]).join(
+            ", ",
+          )
+        }
+        if (patch.collectionSelect !== undefined) {
+          next.collectionSelect = patch.collectionSelect
+          if (patch.collectionSelect === SELECT_NONE) {
+            next.collectionSetCover = false
+          }
+        }
+        if (patch.hidden !== undefined) {
+          next.hidden = patch.hidden
+        }
+        return next
+      }),
+    )
+    setStatus(
+      selectedRowIds.size > 0
+        ? `Batch edits applied to ${selectedRowIds.size} photo(s).`
+        : `Batch edits applied to all ${rows.length} photo(s).`,
+    )
+  }
+
+  /** Recompute gallery ids only when title is added/cleared, extension changes, or rows change — not on every title keystroke. */
   const destKey = useMemo(
     () =>
       rows
         .map((r) =>
           [
             r.id,
-            r.title,
-            r.tags,
-            r.location,
-            r.captureDate,
-            r.cameraSelect,
-            r.lensSelect,
-            r.collectionSelect,
-            r.description,
-            r.hidden,
-            r.sortOrder,
+            r.destId,
             r.extension,
+            r.editExistingId ?? "",
+            r.title.trim() ? "titled" : "",
           ].join("\x1e"),
         )
         .join("\x1f"),
@@ -470,8 +694,22 @@ export default function App() {
 
   const clearRows = () => {
     setRows([])
+    setSelectedRowIds(new Set())
     setStatus(null)
     setErrorDetail(null)
+    void clearPersistedDraft()
+  }
+
+  const resetSavedDraft = () => {
+    if (
+      !window.confirm(
+        "Discard autosaved upload work? The photo list and commit note on this screen will be cleared. This cannot be undone.",
+      )
+    ) {
+      return
+    }
+    clearRows()
+    setStatus("Autosaved draft discarded.")
   }
 
   const addEditPhoto = async () => {
@@ -506,6 +744,9 @@ export default function App() {
         id: match.id,
       })
       const row = uploadRowFromGalleryEdit(photo, registries)
+      if (!row.copyright.trim()) {
+        row.copyright = defaultCopyrightRef.current
+      }
       if (rowsRef.current.some((r) => r.editExistingId === row.editExistingId)) {
         setStatus("That photo is already in the list.")
         return
@@ -564,6 +805,13 @@ export default function App() {
       lines.push(s)
     }
     setStatus("Checking filenames…")
+    let unlistenProgress: (() => void) | undefined
+    if (isTauri()) {
+      const { listen } = await import("@tauri-apps/api/event")
+      unlistenProgress = await listen<{ message: string }>("upload-progress", (event) => {
+        setStatus(event.payload.message)
+      })
+    }
     try {
       trace(`Filenames: ${rows.length} photo(s) queued.`)
       const ready = await enrichRowsWithDest(rows)
@@ -574,7 +822,7 @@ export default function App() {
         trace(`Conflict check: these names already exist in the repo: ${clash.join(", ")}`)
         setRows(ready)
         setStatus(
-          "A file with the same name is already in this gallery. Change a title so each name is unique, then try again.",
+          "A planned gallery file id already exists in the repo. Remove that photo from the list or use Edit existing… to update it.",
         )
         setErrorDetail(lines.join("\n"))
         return
@@ -640,6 +888,8 @@ export default function App() {
         return
       }
       setRows([])
+      setSelectedRowIds(new Set())
+      void clearPersistedDraft()
       setErrorDetail(null)
       setStatus(msg || "Upload finished. Your photos should appear on the site after the next deploy.")
     } catch (e) {
@@ -648,6 +898,7 @@ export default function App() {
       setStatus("Upload failed. See technical details below.")
       setErrorDetail(lines.join("\n"))
     } finally {
+      unlistenProgress?.()
       setBusy(false)
       uploadBusyRef.current = false
     }
@@ -753,47 +1004,49 @@ export default function App() {
                 Edit settings…
               </button>
             </div>
-            <details className="site-config-details">
+            <details
+              className="site-config-details"
+              onToggle={(e) => {
+                if ((e.currentTarget as HTMLDetailsElement).open) {
+                  setRepoSyncKey((k) => k + 1)
+                }
+              }}
+            >
               <summary>Site settings (site.json)</summary>
-              <SiteConfigPanel disabled={busy || repoPreparing} />
+              <SiteConfigPanel
+                reloadKey={repoSyncKey}
+                disabled={busy || repoPreparing}
+                onSaved={() => void refreshSiteCopyrightDefault()}
+              />
             </details>
             <p className="muted registry-project-hint">
-              Create collections, cameras, and lenses before uploading so you can assign them to
-              photos. Equipment can include a product image; collections can pick a cover photo.
+              Manage collections, cameras, and lenses below, then assign them when uploading.
+              Equipment can include a product image; collections can pick a cover photo.
             </p>
-            <div className="actions registry-project-actions">
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => setRegistryModal({ kind: "collection" })}
-                disabled={busy || repoPreparing}
-              >
-                New collection…
-              </button>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => setRegistryModal({ kind: "camera" })}
-                disabled={busy || repoPreparing}
-              >
-                New camera…
-              </button>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => setRegistryModal({ kind: "lens" })}
-                disabled={busy || repoPreparing}
-              >
-                New lens…
-              </button>
-            </div>
+            <RegistryListsPanel
+              registries={registries}
+              disabled={busy || repoPreparing}
+              onEdit={(kind, slug) => setRegistryModal({ kind, editSlug: slug })}
+              onNew={(kind) => setRegistryModal({ kind })}
+            />
           </section>
 
           <section className="card">
             <h2>Photos</h2>
+            <p className="muted photos-autosave-hint">
+              Your photo list and commit note are autosaved on this PC until you upload or reset.
+            </p>
+            {updateNotice ? (
+              <p className="update-notice muted" role="status">
+                {updateNotice}
+              </p>
+            ) : null}
             <div className="actions">
               <button type="button" onClick={() => void addFiles()} disabled={busy}>
                 Add files…
+              </button>
+              <button type="button" className="ghost" onClick={() => void addFolder()} disabled={busy}>
+                Add folder…
               </button>
               <button
                 type="button"
@@ -806,17 +1059,47 @@ export default function App() {
               <button type="button" className="ghost" onClick={clearRows} disabled={busy || rows.length === 0}>
                 Clear list
               </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={resetSavedDraft}
+                disabled={busy || (rows.length === 0 && !commitMessage.trim())}
+              >
+                Reset autosave…
+              </button>
             </div>
 
             {rows.length > 0 ? (
-              <PhotoPanels
-                rows={rows}
-                registries={registries}
-                knownTags={knownTags}
-                updateRow={updateRow}
-                getDestPreview={getDestPreview}
-                onOpenRegistryCreate={setRegistryModal}
-              />
+              <>
+                <BatchEditBar
+                  rowCount={rows.length}
+                  selectedCount={selectedRowIds.size}
+                  registries={registries}
+                  knownTags={knownTags}
+                  disabled={busy}
+                  onApply={applyBatchEdit}
+                  onSelectAll={() => setSelectedRowIds(new Set(rows.map((r) => r.id)))}
+                  onClearSelection={() => setSelectedRowIds(new Set())}
+                />
+                <PhotoPanels
+                  rows={rows}
+                  registries={registries}
+                  knownTags={knownTags}
+                  copyrightPlaceholder={copyrightPlaceholder}
+                  selectedIds={selectedRowIds}
+                  onToggleSelect={(id, selected) => {
+                    setSelectedRowIds((prev) => {
+                      const next = new Set(prev)
+                      if (selected) next.add(id)
+                      else next.delete(id)
+                      return next
+                    })
+                  }}
+                  updateRow={updateRow}
+                  getDestPreview={getDestPreview}
+                  onOpenRegistryCreate={setRegistryModal}
+                />
+              </>
             ) : (
               <p className="muted">No files yet.</p>
             )}
@@ -852,6 +1135,7 @@ export default function App() {
       {registryModal ? (
         <RegistryCreateModal
           kind={registryModal.kind}
+          editSlug={registryModal.editSlug}
           registries={registries}
           coverCandidates={coverCandidates}
           onCreated={handleRegistryCreated}

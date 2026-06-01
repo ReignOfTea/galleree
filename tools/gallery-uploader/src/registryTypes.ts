@@ -2,6 +2,7 @@ export type RegistryCollection = {
   slug: string
   title: string
   description: string | null
+  coverImageId: string | null
 }
 
 export type RegistryEquipment = {
@@ -28,6 +29,8 @@ export type RegistryField = "collectionSelect" | "cameraSelect" | "lensSelect"
 
 export type RegistryModalRequest = {
   kind: RegistryKind
+  /** When set, open the form to edit an existing registry entry (slug is fixed). */
+  editSlug?: string
   /** Photo row to assign after create; omit for toolbar-only create */
   rowId?: string
   field?: RegistryField

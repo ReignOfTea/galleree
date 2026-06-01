@@ -2,12 +2,14 @@ import {
   GALLERY_COLLECTION_META_VERSION,
   collectionSlugFromTitle,
   isValidCollectionSlug,
+  parseGalleryCollectionMetaFile,
   serializeGalleryCollectionMeta,
 } from "@galleree/gallery-collection"
 import {
   GALLERY_EQUIPMENT_META_VERSION,
   equipmentSlugFromLabel,
   isValidEquipmentSlug,
+  parseGalleryEquipmentMetaFile,
   serializeGalleryEquipmentMeta,
 } from "@galleree/gallery-equipment"
 import { appInvoke } from "./tauriBridge"
@@ -23,12 +25,15 @@ async function writeRegistryAsset(relativePath: string, sourcePath: string): Pro
 }
 
 export type SaveCollectionInput = {
+  /** Existing slug when editing; derived from title when creating. */
+  slug?: string
   title: string
   description: string
   coverImageId: string | null
 }
 
 export type SaveEquipmentInput = {
+  slug?: string
   name: string
   make: string
   model: string
@@ -37,11 +42,60 @@ export type SaveEquipmentInput = {
   lensSlug: string | null
 }
 
+async function readRegistryJson(relativePath: string): Promise<unknown> {
+  const raw = await appInvoke<string>("read_gallery_registry_file", {
+    relativePath,
+  })
+  return JSON.parse(raw) as unknown
+}
+
+export async function loadCollectionForEdit(slug: string): Promise<SaveCollectionInput> {
+  const raw = await readRegistryJson(`meta/collections/${slug}.json`)
+  const meta = parseGalleryCollectionMetaFile(raw)
+  if (!meta) {
+    throw new Error(`Could not read collection “${slug}”.`)
+  }
+  return {
+    slug: meta.slug,
+    title: meta.title,
+    description: meta.description ?? "",
+    coverImageId: meta.coverImageId,
+  }
+}
+
+export async function loadEquipmentForEdit(
+  kind: "camera" | "lens",
+  slug: string,
+): Promise<SaveEquipmentInput & { imageRelative: string | null }> {
+  const raw = await readRegistryJson(`meta/${kind}s/${slug}.json`)
+  const meta = parseGalleryEquipmentMetaFile(raw, { expectedSlug: slug })
+  if (!meta) {
+    throw new Error(`Could not read ${kind} “${slug}”.`)
+  }
+  return {
+    slug: meta.slug,
+    name: meta.name,
+    make: meta.make ?? "",
+    model: meta.model ?? "",
+    description: meta.description ?? "",
+    imagePath: null,
+    lensSlug: meta.lensSlug ?? null,
+    imageRelative: meta.image,
+  }
+}
+
+export async function resolveGalleryAssetPath(
+  relative: string,
+): Promise<string> {
+  return appInvoke("resolve_gallery_relative_path", { relativePath: relative })
+}
+
 export async function saveCollectionRegistry(
   input: SaveCollectionInput,
 ): Promise<string> {
   const title = input.title.trim()
-  const slug = collectionSlugFromTitle(title)
+  const slug =
+    input.slug?.trim().toLowerCase() ?? collectionSlugFromTitle(title) ?? ""
   if (!slug) {
     throw new Error("Enter a title that produces a valid slug (letters and numbers).")
   }
@@ -91,7 +145,7 @@ export async function setCollectionCoverPhoto(
 
 export async function saveCameraRegistry(input: SaveEquipmentInput): Promise<string> {
   const name = input.name.trim()
-  const slug = equipmentSlugFromLabel(name)
+  const slug = input.slug?.trim().toLowerCase() ?? equipmentSlugFromLabel(name) ?? ""
   if (!slug || !isValidEquipmentSlug(slug)) {
     throw new Error("Enter a name that produces a valid camera slug.")
   }
@@ -121,7 +175,7 @@ export async function saveCameraRegistry(input: SaveEquipmentInput): Promise<str
 
 export async function saveLensRegistry(input: SaveEquipmentInput): Promise<string> {
   const name = input.name.trim()
-  const slug = equipmentSlugFromLabel(name)
+  const slug = input.slug?.trim().toLowerCase() ?? equipmentSlugFromLabel(name) ?? ""
   if (!slug || !isValidEquipmentSlug(slug)) {
     throw new Error("Enter a name that produces a valid lens slug.")
   }

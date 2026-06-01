@@ -45,6 +45,16 @@ export async function appPickImageFile(): Promise<string | null> {
   return typeof picked === "string" ? picked : null
 }
 
+export async function appOpenFolder(): Promise<string | null> {
+  if (!isTauri()) {
+    throw new Error(TAURI_REQUIRED_MESSAGE)
+  }
+  const { open } = await import("@tauri-apps/plugin-dialog")
+  const picked = await open({ directory: true, multiple: false })
+  if (picked === null) return null
+  return typeof picked === "string" ? picked : null
+}
+
 export async function appOpenFiles(): Promise<string[]> {
   if (!isTauri()) {
     throw new Error(TAURI_REQUIRED_MESSAGE)
