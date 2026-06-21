@@ -34,6 +34,7 @@ import { QueueToolbar } from "./components/QueueToolbar"
 import { SessionDefaultsBar } from "./components/SessionDefaultsBar"
 import { SiteConfigPanel } from "./components/SiteConfigPanel"
 import { UploadSummaryStrip } from "./components/UploadSummaryStrip"
+import { PublishOptions } from "./components/PublishOptions"
 import { PhotoTable } from "./components/PhotoTable"
 import { titleFromFilename } from "./lib/titleFromFilename"
 import { fetchSiteCopyrightDefault } from "./lib/siteCopyrightDefault"
@@ -75,6 +76,11 @@ import type {
 } from "./registryTypes"
 import { SELECT_CUSTOM, SELECT_NONE } from "./registryTypes"
 import type { SessionDefaults } from "./lib/sessionDefaults"
+import {
+  DEFAULT_PUBLISH_MODE,
+  publishModeOption,
+  type PublishMode,
+} from "./lib/publishModes"
 import type { GalleryPhotoEdit, UploadRow } from "./types"
 import "./App.css"
 
@@ -199,6 +205,9 @@ export default function App() {
   const rowsRef = useRef(rows)
   rowsRef.current = rows
   const [commitMessage, setCommitMessage] = useState("")
+  const [publishMode, setPublishMode] = useState<PublishMode>(DEFAULT_PUBLISH_MODE)
+  /** Files were copied to public/gallery but git publish failed — allow retry without re-staging. */
+  const [publishRetryAvailable, setPublishRetryAvailable] = useState(false)
   /** Multi-line trace for the last failed upload (shown in expandable details). */
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const repoPrepareLock = useRef(false)
@@ -951,6 +960,92 @@ export default function App() {
     !repoPreparing &&
     !rows.some((r) => r.destExists && !r.editExistingId)
 
+  const confirmRiskyPublish = (mode: PublishMode): boolean => {
+    if (mode === "force_push") {
+      return window.confirm(
+        "Force push will make GitHub match this PC’s gallery folder. Commits that exist only on GitHub can be lost.\n\nOnly continue if you are sure that is what you want.",
+      )
+    }
+    if (mode === "force_with_lease") {
+      return window.confirm(
+        "This will try to replace what is on GitHub with your local copy, but only if nobody else pushed new commits since your last sync.\n\nContinue?",
+      )
+    }
+    return true
+  }
+
+  const publishToGit = async (
+    lines: string[],
+    trace: (s: string) => void,
+    mode: PublishMode,
+  ): Promise<boolean> => {
+    if (!confirmRiskyPublish(mode)) {
+      trace("Publish cancelled — confirmation declined for risky option.")
+      setPublishRetryAvailable(true)
+      setStatus("Publish cancelled. Change the option below or try again when ready.")
+      setErrorDetail(lines.join("\n"))
+      return false
+    }
+    const opt = publishModeOption(mode)
+    trace(`Publish mode: ${opt.label}`)
+    setStatus("Publishing…")
+    const msg = await appInvoke<string>("git_commit_and_push", {
+      message: commitMessage.trim() || "Add photos",
+      publishMode: mode,
+    })
+    trace(`git_commit_and_push returned: ${msg}`)
+    if (/nothing to commit/i.test(msg)) {
+      trace(
+        "Hint: files on disk may already match the last commit, or the repo workdir path is wrong. Check technical details and public/gallery/ on disk.",
+      )
+      setStatus("Upload copied files, but Git reported nothing new to publish. See technical details below.")
+      setErrorDetail(lines.join("\n"))
+      setPublishRetryAvailable(true)
+      return false
+    }
+    setRows([])
+    setSelectedRowIds(new Set())
+    void saveUploadPreferences(sessionDefaults)
+    savedLastPrefsRef.current = sessionDefaults
+    setLastPrefsAvailable(hasMeaningfulSessionDefaults(sessionDefaults))
+    void clearPersistedDraft()
+    setErrorDetail(null)
+    setPublishRetryAvailable(false)
+    setStatus(msg || "Upload finished. Your photos should appear on the site after the next deploy.")
+    return true
+  }
+
+  const retryPublish = async () => {
+    if (busy || uploadBusyRef.current) return
+    uploadBusyRef.current = true
+    setBusy(true)
+    const lines: string[] = []
+    const trace = (s: string) => {
+      lines.push(s)
+    }
+    trace("Retrying publish (files already copied to public/gallery).")
+    let unlistenProgress: (() => void) | undefined
+    if (isTauri()) {
+      const { listen } = await import("@tauri-apps/api/event")
+      unlistenProgress = await listen<{ message: string }>("upload-progress", (event) => {
+        setStatus(event.payload.message)
+      })
+    }
+    try {
+      await publishToGit(lines, trace, publishMode)
+    } catch (e) {
+      const err = String(e)
+      trace(`Error: ${err}`)
+      setStatus("Publish failed. Pick a different option below and try again.")
+      setErrorDetail(lines.join("\n"))
+      setPublishRetryAvailable(true)
+    } finally {
+      unlistenProgress?.()
+      setBusy(false)
+      uploadBusyRef.current = false
+    }
+  }
+
   const uploadPics = async () => {
     if (!allTitlesOk) {
       setStatus("Enter a title for every photo before uploading.")
@@ -962,6 +1057,7 @@ export default function App() {
     uploadBusyRef.current = true
     setBusy(true)
     setErrorDetail(null)
+    setPublishRetryAvailable(false)
     const lines: string[] = []
     const trace = (s: string) => {
       lines.push(s)
@@ -1037,30 +1133,17 @@ export default function App() {
       }
 
       setStatus("Publishing…")
-      const msg = await appInvoke<string>("git_commit_and_push", {
-        message: commitMessage.trim() || "Add photos",
-      })
-      trace(`git_commit_and_push returned: ${msg}`)
-      if (/nothing to commit/i.test(msg)) {
-        trace(
-          "Hint: files on disk may already match the last commit, or the repo workdir path is wrong. Check technical details and public/gallery/ on disk.",
-        )
-        setStatus("Upload copied files, but Git reported nothing new to publish. See technical details below.")
-        setErrorDetail(lines.join("\n"))
-        return
-      }
-      setRows([])
-      setSelectedRowIds(new Set())
-      void saveUploadPreferences(sessionDefaults)
-      savedLastPrefsRef.current = sessionDefaults
-      setLastPrefsAvailable(hasMeaningfulSessionDefaults(sessionDefaults))
-      void clearPersistedDraft()
-      setErrorDetail(null)
-      setStatus(msg || "Upload finished. Your photos should appear on the site after the next deploy.")
+      const published = await publishToGit(lines, trace, publishMode)
+      if (!published) return
     } catch (e) {
       const err = String(e)
       trace(`Error: ${err}`)
-      setStatus("Upload failed. See technical details below.")
+      if (lines.some((l) => l.includes("stage_gallery_files OK"))) {
+        setPublishRetryAvailable(true)
+        setStatus("Photos were copied locally, but publishing to GitHub failed. Try another option below.")
+      } else {
+        setStatus("Upload failed. See technical details below.")
+      }
       setErrorDetail(lines.join("\n"))
     } finally {
       unlistenProgress?.()
@@ -1347,6 +1430,13 @@ export default function App() {
               allTitlesOk={allTitlesOk}
             />
 
+            <PublishOptions
+              mode={publishMode}
+              disabled={busy}
+              highlight={publishRetryAvailable}
+              onChange={setPublishMode}
+            />
+
             <label className="field">
               <span>Optional note for this upload</span>
               <input
@@ -1360,6 +1450,16 @@ export default function App() {
               <button type="button" className="primary" onClick={() => void uploadPics()} disabled={!canUpload}>
                 Upload pics
               </button>
+              {publishRetryAvailable ? (
+                <button
+                  type="button"
+                  className="publish-retry"
+                  onClick={() => void retryPublish()}
+                  disabled={busy}
+                >
+                  Try publishing again
+                </button>
+              ) : null}
             </div>
           </section>
         </>

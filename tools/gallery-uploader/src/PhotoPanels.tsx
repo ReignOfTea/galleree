@@ -38,6 +38,7 @@ export function PhotoPanels({
       {rows.map((r) => {
         const name = basename(r.sourcePath)
         const titleMissing = !r.title.trim()
+        const destClash = r.destExists && !r.editExistingId
         const preview = getDestPreview(r)
 
         return (
@@ -49,7 +50,8 @@ export function PhotoPanels({
             }}
             data-row-id={r.id}
             data-title-missing={titleMissing ? "true" : undefined}
-            className="photo-panel"
+            data-dest-clash={destClash ? "true" : undefined}
+            className={`photo-panel${destClash ? " photo-panel--clash" : ""}`}
           >
             <summary className="photo-panel__summary">
               <label
@@ -74,10 +76,13 @@ export function PhotoPanels({
                 {titleMissing ? (
                   <span className="photo-panel__badge photo-panel__badge--warn">Title required</span>
                 ) : null}
+                {destClash ? (
+                  <span className="photo-panel__badge photo-panel__badge--clash">
+                    Already in gallery
+                  </span>
+                ) : null}
                 {preview ? (
-                  <code
-                    className={`photo-panel__dest ${r.destExists && !r.editExistingId ? "warn" : ""}`}
-                  >
+                  <code className={`photo-panel__dest ${destClash ? "warn" : ""}`}>
                     {preview.file}
                   </code>
                 ) : (

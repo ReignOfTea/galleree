@@ -58,8 +58,14 @@ export function PhotoTable({
           {rows.map((r) => {
             const name = basename(r.sourcePath)
             const titleMissing = !r.title.trim()
+            const destClash = r.destExists && !r.editExistingId
             const preview = getDestPreview(r)
             const expanded = expandedId === r.id
+            const rowClass = destClash
+              ? "photo-table__row--clash"
+              : titleMissing
+                ? "photo-table__row--warn"
+                : undefined
 
             return (
               <Fragment key={r.id}>
@@ -70,7 +76,8 @@ export function PhotoTable({
                   }}
                   data-row-id={r.id}
                   data-title-missing={titleMissing ? "true" : undefined}
-                  className={titleMissing ? "photo-table__row--warn" : undefined}
+                  data-dest-clash={destClash ? "true" : undefined}
+                  className={rowClass}
                 >
                   <td>
                     <input
@@ -93,9 +100,14 @@ export function PhotoTable({
                     />
                     <div className="photo-table__meta muted">
                       {preview ? (
-                        <code className={r.destExists && !r.editExistingId ? "warn" : ""}>
-                          {preview.file}
-                        </code>
+                        <>
+                          <code className={destClash ? "warn" : ""}>{preview.file}</code>
+                          {destClash ? (
+                            <span className="photo-table__clash-badge">
+                              Already in gallery — change title or use Edit existing…
+                            </span>
+                          ) : null}
+                        </>
                       ) : (
                         <span>{name}</span>
                       )}

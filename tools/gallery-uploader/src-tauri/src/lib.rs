@@ -277,6 +277,79 @@ fn git_pull_rebase_autostash(
     Ok(())
 }
 
+/// Pull with merge (no rebase) when rebase keeps failing.
+fn git_pull_merge_autostash(
+    workdir: &Path,
+    extra: &[String; 2],
+    branch: &str,
+) -> Result<(), String> {
+    let mut pull = git_command(workdir);
+    pull.arg(&extra[0])
+        .arg(&extra[1])
+        .args(["pull", "--no-rebase", "--autostash", "origin", branch]);
+    if let Err(e) = output_status(&mut pull) {
+        return Err(format_git_failure(workdir, "pull (merge)", e));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PublishMode {
+    Standard,
+    SkipPull,
+    MergeInstead,
+    ForceWithLease,
+    ForcePush,
+}
+
+fn parse_publish_mode(mode: Option<&str>) -> PublishMode {
+    match mode.unwrap_or("standard").trim() {
+        "skip_pull" => PublishMode::SkipPull,
+        "merge_instead" => PublishMode::MergeInstead,
+        "force_with_lease" => PublishMode::ForceWithLease,
+        "force_push" => PublishMode::ForcePush,
+        _ => PublishMode::Standard,
+    }
+}
+
+fn git_pull_for_publish(
+    workdir: &Path,
+    extra: &[String; 2],
+    branch: &str,
+    mode: PublishMode,
+) -> Result<(), String> {
+    match mode {
+        PublishMode::SkipPull => Ok(()),
+        PublishMode::MergeInstead => git_pull_merge_autostash(workdir, extra, branch),
+        _ => git_pull_rebase_autostash(workdir, extra, branch),
+    }
+}
+
+fn git_push_for_publish(
+    workdir: &Path,
+    extra: &[String; 2],
+    branch: &str,
+    mode: PublishMode,
+) -> Result<(), String> {
+    let mut push = git_command(workdir);
+    push.arg(&extra[0]).arg(&extra[1]).arg("push");
+    if mode == PublishMode::ForceWithLease {
+        push.arg("--force-with-lease");
+    } else if mode == PublishMode::ForcePush {
+        push.arg("--force");
+    }
+    push.arg("origin").arg(format!("HEAD:{branch}"));
+    if let Err(e) = output_status(&mut push) {
+        let step = match mode {
+            PublishMode::ForceWithLease => "push --force-with-lease",
+            PublishMode::ForcePush => "push --force",
+            _ => "push",
+        };
+        return Err(format_git_failure(workdir, step, e));
+    }
+    Ok(())
+}
+
 /// True when `.git/HEAD` exists so `git pull` / `git checkout` can run.
 fn is_valid_git_worktree(workdir: &Path) -> bool {
     workdir.join(".git").join("HEAD").is_file()
@@ -1781,7 +1854,11 @@ async fn stage_gallery_files(
         .map_err(|e| format!("copy task failed: {e}"))?
 }
 
-fn git_commit_and_push_blocking(app: &tauri::AppHandle, message: &str) -> Result<String, String> {
+fn git_commit_and_push_blocking(
+    app: &tauri::AppHandle,
+    message: &str,
+    publish_mode: Option<&str>,
+) -> Result<String, String> {
     let cfg = load_config(app.clone())?.ok_or("not configured")?;
     let pat = pat_entry()?.get_password().map_err(|_| "missing PAT")?;
     let workdir = PathBuf::from(&cfg.workdir);
@@ -1791,9 +1868,16 @@ fn git_commit_and_push_blocking(app: &tauri::AppHandle, message: &str) -> Result
     }
 
     let extra = authed_git_extra_args(&pat)?;
+    let mode = parse_publish_mode(publish_mode);
 
-    emit_upload_progress(app, "Pulling latest from GitHub…");
-    git_pull_rebase_autostash(&workdir, &extra, branch)?;
+    if mode == PublishMode::SkipPull {
+        emit_upload_progress(app, "Skipping download — publishing local copy…");
+    } else if mode == PublishMode::MergeInstead {
+        emit_upload_progress(app, "Pulling latest from GitHub (merge)…");
+    } else {
+        emit_upload_progress(app, "Pulling latest from GitHub…");
+    }
+    git_pull_for_publish(&workdir, &extra, branch, mode)?;
     restore_tracked_public_files(&workdir)?;
 
     emit_upload_progress(app, "Staging files for commit…");
@@ -1834,22 +1918,23 @@ fn git_commit_and_push_blocking(app: &tauri::AppHandle, message: &str) -> Result
     }
 
     emit_upload_progress(app, "Pushing to GitHub…");
-    let mut push = git_command(&workdir);
-    push.arg(&extra[0])
-        .arg(&extra[1])
-        .args(["push", "origin", &format!("HEAD:{branch}")]);
-    if let Err(e) = output_status(&mut push) {
-        return Err(format_git_failure(&workdir, "push", e));
-    }
+    git_push_for_publish(&workdir, &extra, branch, mode)?;
     Ok("Committed and pushed.".into())
 }
 
 #[tauri::command]
-async fn git_commit_and_push(app: tauri::AppHandle, message: String) -> Result<String, String> {
+async fn git_commit_and_push(
+    app: tauri::AppHandle,
+    message: String,
+    publish_mode: Option<String>,
+) -> Result<String, String> {
     let app = app.clone();
-    tauri::async_runtime::spawn_blocking(move || git_commit_and_push_blocking(&app, &message))
-        .await
-        .map_err(|e| format!("publish task failed: {e}"))?
+    let mode = publish_mode;
+    tauri::async_runtime::spawn_blocking(move || {
+        git_commit_and_push_blocking(&app, &message, mode.as_deref())
+    })
+    .await
+    .map_err(|e| format!("publish task failed: {e}"))?
 }
 
 fn is_allowed_image_path(path: &Path) -> bool {
