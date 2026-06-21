@@ -12,5 +12,72 @@
   "camera": "sony-ilce-7m4",
   "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
   "copyright": "© Reign of Tea. All rights reserved.",
-  "uploadedAt": "2026-06-01T21:40:58.353Z"
+  "uploadedAt": "2026-06-01T21:40:58.353Z",
+  "blurHash": "UTIz-j8_0e-p*JocMxE2~WM{M{aKx^jFM{R*",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "94 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "94 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/4.5"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/320 s"
+    },
+    {
+      "label": "ISO",
+      "value": "100"
+    },
+    {
+      "label": "Exposure program",
+      "value": "Aperture priority"
+    },
+    {
+      "label": "Metering mode",
+      "value": "Pattern"
+    },
+    {
+      "label": "Flash",
+      "value": "Flash did not fire, compulsory flash mode"
+    },
+    {
+      "label": "White balance",
+      "value": "Auto"
+    },
+    {
+      "label": "Date (original)",
+      "value": "23 May 2026, 18:24"
+    },
+    {
+      "label": "Date (created)",
+      "value": "23 May 2026, 18:24"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "23 May 2026, 19:10"
+    },
+    {
+      "label": "Color space",
+      "value": "1"
+    }
+  ]
 }
