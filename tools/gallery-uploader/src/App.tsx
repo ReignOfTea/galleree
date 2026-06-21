@@ -213,6 +213,8 @@ export default function App() {
   const [publishMode, setPublishMode] = useState<PublishMode>(DEFAULT_PUBLISH_MODE)
   /** Files were copied to public/gallery but git publish failed — allow retry without re-staging. */
   const [publishRetryAvailable, setPublishRetryAvailable] = useState(false)
+  /** Git worktree stuck in merge/conflict — show repair action. */
+  const [publishNeedsRepair, setPublishNeedsRepair] = useState(false)
   /** Multi-line trace for the last failed upload (shown in expandable details). */
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const repoPrepareLock = useRef(false)
@@ -1064,6 +1066,40 @@ export default function App() {
     return true
   }
 
+  const notePublishGitError = (err: string, lines: string[], trace: (s: string) => void) => {
+    trace(`Error: ${err}`)
+    const needsRepair = /unmerged|unfinished merge|Repair gallery folder/i.test(err)
+    setPublishNeedsRepair(needsRepair)
+    if (lines.some((l) => l.includes("stage_gallery_files OK"))) {
+      setPublishRetryAvailable(true)
+      setStatus(
+        needsRepair
+          ? "Photos were copied locally, but the gallery project folder is stuck in a git conflict. Repair it below, then publish again."
+          : "Photos were copied locally, but publishing to GitHub failed. Try another option below.",
+      )
+    } else {
+      setStatus("Upload failed. See technical details below.")
+    }
+    setErrorDetail(lines.join("\n"))
+  }
+
+  const repairGalleryFolder = async () => {
+    if (busy || uploadBusyRef.current) return
+    uploadBusyRef.current = true
+    setBusy(true)
+    try {
+      const msg = await appInvoke<string>("repair_gallery_worktree")
+      setPublishNeedsRepair(false)
+      setPublishRetryAvailable(true)
+      setStatus(`${msg} Try publishing again — “Push without downloading first” is a good choice.`)
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setBusy(false)
+      uploadBusyRef.current = false
+    }
+  }
+
   const retryPublish = async () => {
     if (busy || uploadBusyRef.current) return
     uploadBusyRef.current = true
@@ -1083,11 +1119,7 @@ export default function App() {
     try {
       await publishToGit(lines, trace, publishMode)
     } catch (e) {
-      const err = String(e)
-      trace(`Error: ${err}`)
-      setStatus("Publish failed. Pick a different option below and try again.")
-      setErrorDetail(lines.join("\n"))
-      setPublishRetryAvailable(true)
+      notePublishGitError(String(e), lines, trace)
     } finally {
       unlistenProgress?.()
       setBusy(false)
@@ -1107,6 +1139,7 @@ export default function App() {
     setBusy(true)
     setErrorDetail(null)
     setPublishRetryAvailable(false)
+    setPublishNeedsRepair(false)
     const lines: string[] = []
     const trace = (s: string) => {
       lines.push(s)
@@ -1192,15 +1225,7 @@ export default function App() {
       const published = await publishToGit(lines, trace, publishMode)
       if (!published) return
     } catch (e) {
-      const err = String(e)
-      trace(`Error: ${err}`)
-      if (lines.some((l) => l.includes("stage_gallery_files OK"))) {
-        setPublishRetryAvailable(true)
-        setStatus("Photos were copied locally, but publishing to GitHub failed. Try another option below.")
-      } else {
-        setStatus("Upload failed. See technical details below.")
-      }
-      setErrorDetail(lines.join("\n"))
+      notePublishGitError(String(e), lines, trace)
     } finally {
       unlistenProgress?.()
       setBusy(false)
@@ -1510,6 +1535,16 @@ export default function App() {
               <button type="button" className="primary" onClick={() => void uploadPics()} disabled={!canUpload}>
                 Upload pics
               </button>
+              {publishNeedsRepair ? (
+                <button
+                  type="button"
+                  className="publish-retry"
+                  onClick={() => void repairGalleryFolder()}
+                  disabled={busy}
+                >
+                  Repair gallery folder
+                </button>
+              ) : null}
               {publishRetryAvailable ? (
                 <button
                   type="button"

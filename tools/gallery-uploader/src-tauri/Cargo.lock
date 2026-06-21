@@ -1103,7 +1103,7 @@ dependencies = [
 
 [[package]]
 name = "gallery-uploader"
-version = "0.1.2"
+version = "0.1.4"
 dependencies = [
  "base64 0.22.1",
  "chrono",

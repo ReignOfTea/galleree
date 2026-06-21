@@ -229,13 +229,59 @@ fn pat_entry() -> Result<keyring::Entry, String> {
 fn git_command(workdir: &Path) -> Command {
     let mut c = Command::new("git");
     c.current_dir(workdir);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        c.creation_flags(CREATE_NO_WINDOW);
-    }
+    apply_no_window(&mut c);
     c
+}
+
+fn npm_command(workdir: &Path) -> Command {
+    #[cfg(windows)]
+    let mut c = Command::new("npm.cmd");
+    #[cfg(not(windows))]
+    let mut c = Command::new("npm");
+    c.current_dir(workdir);
+    apply_no_window(&mut c);
+    c
+}
+
+#[cfg(windows)]
+fn apply_no_window(c: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    c.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn apply_no_window(_c: &mut Command) {}
+
+/// Keep photo sidecars in sync with site CI (`check-gallery-assets` / Pages deploy).
+fn run_generate_assets_in_workdir(
+    workdir: &Path,
+    app: &tauri::AppHandle,
+) -> Result<(), String> {
+    let pkg = workdir.join("package.json");
+    let script = workdir.join("scripts/generate-gallery-assets.mjs");
+    if !pkg.is_file() || !script.is_file() {
+        return Ok(());
+    }
+    emit_upload_progress(
+        app,
+        "Updating blurHash and exifDisplay in photo sidecars…",
+    );
+    let mut cmd = npm_command(workdir);
+    cmd.args(["run", "generate-assets", "--silent"]);
+    let out = cmd.output().map_err(|e| {
+        format!(
+            "Could not run npm run generate-assets ({e}). \
+             Install Node.js and run npm install once in the gallery project folder."
+        )
+    })?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let detail = if stderr.is_empty() { stdout } else { stderr };
+    Err(format!("generate-assets failed: {detail}"))
 }
 
 fn output_status(cmd: &mut Command) -> Result<String, String> {
@@ -274,8 +320,17 @@ fn git_worktree_status(workdir: &Path) -> String {
 }
 
 fn format_git_failure(workdir: &Path, step: &str, detail: String) -> String {
+    let repair_hint = if detail.contains("unmerged")
+        || detail.contains("unmerged files")
+        || git_worktree_needs_repair(workdir)
+    {
+        "\n\nThe gallery project folder has an unfinished merge or conflict. \
+         Click “Repair gallery folder”, then try publishing again (Push without downloading first is fine if you just repaired)."
+    } else {
+        ""
+    };
     format!(
-        "Git {step} failed.\n\n{detail}\n\n--- git status ---\n{}\n\nFix the gallery project folder (resolve conflicts, commit, or stash), then try again.",
+        "Git {step} failed.\n\n{detail}{repair_hint}\n\n--- git status ---\n{}\n\nFix the gallery project folder (resolve conflicts, commit, or stash), then try again.",
         git_worktree_status(workdir)
     )
 }
@@ -366,6 +421,107 @@ fn git_push_for_publish(
         };
         return Err(format_git_failure(workdir, step, e));
     }
+    Ok(())
+}
+
+fn git_in_progress_operation(workdir: &Path) -> Option<&'static str> {
+    if workdir.join(".git/MERGE_HEAD").exists() {
+        return Some("merge");
+    }
+    if workdir.join(".git/rebase-merge").exists() || workdir.join(".git/rebase-apply").exists() {
+        return Some("rebase");
+    }
+    if workdir.join(".git/CHERRY_PICK_HEAD").exists() {
+        return Some("cherry-pick");
+    }
+    None
+}
+
+fn git_has_unmerged_paths(workdir: &Path) -> bool {
+    let mut cmd = git_command(workdir);
+    cmd.args(["diff", "--name-only", "--diff-filter=U"]);
+    match cmd.output() {
+        Ok(out) if out.status.success() => !String::from_utf8_lossy(&out.stdout)
+            .trim()
+            .is_empty(),
+        _ => false,
+    }
+}
+
+fn git_worktree_needs_repair(workdir: &Path) -> bool {
+    git_in_progress_operation(workdir).is_some() || git_has_unmerged_paths(workdir)
+}
+
+fn git_abort_operations(workdir: &Path) {
+    for args in [
+        ["merge", "--abort"],
+        ["rebase", "--abort"],
+        ["cherry-pick", "--abort"],
+    ] {
+        let mut cmd = git_command(workdir);
+        cmd.args(args);
+        let _ = cmd.output();
+    }
+}
+
+/// Match local clone to origin/branch. Untracked files under public/gallery/ are kept.
+fn git_reset_worktree_to_remote(
+    workdir: &Path,
+    extra: &[String; 2],
+    branch: &str,
+) -> Result<(), String> {
+    let mut fetch = git_command(workdir);
+    fetch
+        .arg(&extra[0])
+        .arg(&extra[1])
+        .args(["fetch", "origin", branch]);
+    output_status(&mut fetch)?;
+
+    let mut reset = git_command(workdir);
+    reset.args(["reset", "--hard", &format!("origin/{branch}")]);
+    output_status(&mut reset)?;
+    Ok(())
+}
+
+fn git_repair_worktree(
+    workdir: &Path,
+    extra: &[String; 2],
+    branch: &str,
+) -> Result<String, String> {
+    let op = git_in_progress_operation(workdir);
+    let unmerged = git_has_unmerged_paths(workdir);
+    if op.is_none() && !unmerged {
+        return Ok("Gallery project folder is already in a normal state.".into());
+    }
+    git_abort_operations(workdir);
+    if git_in_progress_operation(workdir).is_some() || git_has_unmerged_paths(workdir) {
+        git_reset_worktree_to_remote(workdir, extra, branch)?;
+        restore_tracked_public_files(workdir)?;
+        return Ok(format!(
+            "Repaired the gallery project folder (was stuck in {}). \
+             Your copied photos in public/gallery/ are still on disk if they were not committed yet.",
+            op.unwrap_or("unmerged changes")
+        ));
+    }
+    Ok("Aborted the unfinished git operation.".into())
+}
+
+fn git_prepare_worktree_for_pull(
+    workdir: &Path,
+    extra: &[String; 2],
+    branch: &str,
+    app: Option<&tauri::AppHandle>,
+) -> Result<(), String> {
+    if !git_worktree_needs_repair(workdir) {
+        return Ok(());
+    }
+    if let Some(app) = app {
+        emit_upload_progress(
+            app,
+            "Repairing gallery project folder (unfinished merge or conflict)…",
+        );
+    }
+    git_repair_worktree(workdir, extra, branch)?;
     Ok(())
 }
 
@@ -1228,6 +1384,7 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
 
     if is_valid_git_worktree(&workdir) {
         ensure_galleree_layout(&workdir)?;
+        git_prepare_worktree_for_pull(&workdir, &extra, branch, Some(&app))?;
         git_pull_rebase_autostash(&workdir, &extra, branch)?;
         restore_tracked_public_files(&workdir)?;
         invalidate_gallery_hash_cache(&app);
@@ -2034,6 +2191,21 @@ async fn stage_gallery_files(
         .map_err(|e| format!("copy task failed: {e}"))?
 }
 
+#[tauri::command]
+fn repair_gallery_worktree(app: tauri::AppHandle) -> Result<String, String> {
+    let cfg = load_config(app.clone())?.ok_or("not configured")?;
+    let pat = pat_entry()?.get_password().map_err(|_| "missing PAT")?;
+    let workdir = PathBuf::from(&cfg.workdir);
+    let branch = cfg.branch.trim();
+    if !is_valid_git_worktree(&workdir) {
+        return Err("not a git repository — click “Sync gallery project” first".into());
+    }
+    let extra = authed_git_extra_args(&pat)?;
+    let msg = git_repair_worktree(&workdir, &extra, branch)?;
+    invalidate_gallery_hash_cache(&app);
+    Ok(msg)
+}
+
 fn git_commit_and_push_blocking(
     app: &tauri::AppHandle,
     message: &str,
@@ -2057,8 +2229,10 @@ fn git_commit_and_push_blocking(
     } else {
         emit_upload_progress(app, "Pulling latest from GitHub…");
     }
+    git_prepare_worktree_for_pull(&workdir, &extra, branch, Some(app))?;
     git_pull_for_publish(&workdir, &extra, branch, mode)?;
     restore_tracked_public_files(&workdir)?;
+    run_generate_assets_in_workdir(&workdir, app)?;
 
     emit_upload_progress(app, "Staging files for commit…");
     // Originals and meta under public/gallery/ are tracked; thumbs/ and display/ are gitignored build output.
@@ -2264,6 +2438,7 @@ pub fn run() {
             write_registry_asset,
             stage_gallery_files,
             git_commit_and_push,
+            repair_gallery_worktree,
             list_images_in_directory,
             check_duplicate_paths,
             check_for_app_update,
