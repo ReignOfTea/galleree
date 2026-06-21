@@ -2,6 +2,7 @@ import { matchEquipmentSlug } from "../matchRegistry"
 import { SELECT_CUSTOM, SELECT_NONE } from "../registryTypes"
 import type { GalleryRegistries, RegistryEquipment } from "../registryTypes"
 import type { UploadRow } from "../types"
+import { applyEquipmentDefaults } from "./equipmentDefaults"
 
 export type ImageHints = {
   description: string | null
@@ -54,6 +55,7 @@ export function applyImageHints(
       row.lensCustom = label
     }
   }
+  applyEquipmentDefaults(row, registries)
 }
 
 export function resolveEquipmentSelect(

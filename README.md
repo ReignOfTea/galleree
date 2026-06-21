@@ -25,6 +25,7 @@ After `git clone` or `git pull`, run `npm run generate-assets` (or `npm run buil
 | `npm run dev` | Dev server with hot reload |
 | `npm run build` | `generate-assets` + validate + TypeScript + bundle → `dist/` |
 | `npm run generate-assets` | Thumbs, display WebP, blurHash, `exifDisplay` in sidecars |
+| `npm run check-gallery-assets` | Re-run generate (unless `--skip-generate`), fail if meta differs from git or derivatives missing |
 | `npm run generate-thumbs` | Alias for `generate-assets` |
 | `npm run preview` | Serve `dist/` locally |
 | `npm run lint` | ESLint |
@@ -129,9 +130,23 @@ Slugs are lowercase hyphenated (e.g. `sony-ilce-7m4`). Image sidecars may use th
 
 `gallery:pull` replaces local gallery originals and meta from the remote, then run `npm run generate-assets`. `gallery:push` runs `git pull --rebase`, `git add public/gallery/`, optional site config, commit, and push. Env: `GALLERY_SYNC_COMMIT_MESSAGE`, `GALLERY_SYNC_SKIP_PULL=1`, `GALLERY_SYNC_DRY=1`. Default branch is `master` unless `GALLERY_SYNC_ALLOW_ANY_BRANCH=1`.
 
-**Code-only work:** commit with `git add` / `git push` as usual. Use `local-scripts/deploy.ps1 -CodeOnly` to build and push without staging gallery changes.
+**Code-only work:** commit with `git add` / `git push` as usual.
 
-**CI (GitHub Pages):** Actions runs `npm run build` on push; the runner generates derivatives from tracked originals and meta—nothing under `thumbs/` or `display/` needs to be in git.
+**CI (GitHub Pages):** Actions runs `npm run generate-assets`, verifies committed sidecars match (`npm run check-gallery-assets`), then builds. Derivatives under `thumbs/` and `display/` are not in git.
+
+### Local deploy script (`local-scripts/deploy.ps1`)
+
+Not in git (see `.gitignore` → `local-scripts/`). Keep your copy on each machine; typical layout:
+
+| Flag / mode | What it does |
+|-------------|----------------|
+| *(default)* | `npm run build`, stage gallery + `site.json` / logo / CNAME when changed, bump **Galleree Upload** version if `tools/gallery-uploader/` changed, commit, `git pull --rebase`, push |
+| `-CodeOnly` | Build and push **without** staging `public/gallery/` (site/src/tooling only) |
+| `-DryRun` | Print planned git steps without committing |
+
+**Before a full deploy:** run `npm run generate-assets` locally so `blurHash` / `exifDisplay` in photo sidecars match CI (`check-gallery-assets` fails the Pages workflow if meta would change after generate).
+
+**Uploader-only release** (no site deploy): use `local-scripts/publish-uploader.ps1` — see [tools/gallery-uploader/README.md](tools/gallery-uploader/README.md).
 
 ## Desktop uploader
 

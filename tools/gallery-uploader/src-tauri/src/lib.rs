@@ -119,7 +119,26 @@ pub struct GalleryImageRef {
     pub title: String,
 }
 
-const DRAFT_SESSION_VERSION: u32 = 1;
+const DRAFT_SESSION_VERSION: u32 = 2;
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDefaultsDraft {
+    #[serde(default)]
+    pub tags: String,
+    #[serde(default)]
+    pub collection_select: String,
+    #[serde(default)]
+    pub hidden: Option<bool>,
+    #[serde(default)]
+    pub camera_select: String,
+    #[serde(default)]
+    pub lens_select: String,
+    #[serde(default)]
+    pub copyright: String,
+    #[serde(default)]
+    pub location: String,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -157,6 +176,10 @@ pub struct DraftSession {
     pub commit_message: String,
     pub selected_row_ids: Vec<String>,
     pub rows: Vec<DraftUploadRow>,
+    #[serde(default)]
+    pub session_defaults: Option<SessionDefaultsDraft>,
+    #[serde(default)]
+    pub compact_view: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -409,6 +432,204 @@ fn index_gallery_content_hashes(gallery_dir: &Path) -> Result<HashMap<String, Ga
     Ok(index)
 }
 
+const GALLERY_HASH_CACHE_VERSION: u32 = 1;
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GalleryHashHitSer {
+    id: String,
+    title: String,
+    filename: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GalleryHashCacheFile {
+    version: u32,
+    repo_url: String,
+    branch: String,
+    fingerprint: String,
+    entries: HashMap<String, GalleryHashHitSer>,
+}
+
+fn gallery_hash_cache_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("gallery-hash-index.json"))
+}
+
+fn upload_preferences_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("upload-preferences.json"))
+}
+
+fn display_preview_cache_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| e.to_string())?
+        .join("display-previews");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+fn gallery_fingerprint(gallery_dir: &Path) -> Result<String, String> {
+    let mut count = 0u64;
+    let mut bytes = 0u64;
+    for entry in std::fs::read_dir(gallery_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !is_gallery_image_id(stem) {
+            continue;
+        }
+        count += 1;
+        bytes += std::fs::metadata(&path).map_err(|e| e.to_string())?.len();
+    }
+    Ok(format!("{count}:{bytes}"))
+}
+
+fn invalidate_gallery_hash_cache(app: &tauri::AppHandle) {
+    if let Ok(p) = gallery_hash_cache_path(app) {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
+fn index_gallery_content_hashes_cached(
+    app: &tauri::AppHandle,
+    gallery_dir: &Path,
+) -> Result<HashMap<String, GalleryHashHit>, String> {
+    let cfg = load_config(app.clone())?.ok_or("not configured")?;
+    let fingerprint = gallery_fingerprint(gallery_dir)?;
+    let cache_path = gallery_hash_cache_path(app)?;
+
+    if cache_path.is_file() {
+        if let Ok(raw) = std::fs::read_to_string(&cache_path) {
+            if let Ok(cached) = serde_json::from_str::<GalleryHashCacheFile>(&raw) {
+                if cached.version == GALLERY_HASH_CACHE_VERSION
+                    && cached.repo_url == cfg.repo_url
+                    && cached.branch == cfg.branch
+                    && cached.fingerprint == fingerprint
+                {
+                    let mut index = HashMap::new();
+                    for (hash, hit) in cached.entries {
+                        index.insert(
+                            hash,
+                            GalleryHashHit {
+                                id: hit.id,
+                                title: hit.title,
+                                filename: hit.filename,
+                            },
+                        );
+                    }
+                    return Ok(index);
+                }
+            }
+        }
+    }
+
+    let index = index_gallery_content_hashes(gallery_dir)?;
+    let entries: HashMap<String, GalleryHashHitSer> = index
+        .iter()
+        .map(|(hash, hit)| {
+            (
+                hash.clone(),
+                GalleryHashHitSer {
+                    id: hit.id.clone(),
+                    title: hit.title.clone(),
+                    filename: hit.filename.clone(),
+                },
+            )
+        })
+        .collect();
+    let file = GalleryHashCacheFile {
+        version: GALLERY_HASH_CACHE_VERSION,
+        repo_url: cfg.repo_url,
+        branch: cfg.branch,
+        fingerprint,
+        entries,
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&file) {
+        let _ = std::fs::write(cache_path, format!("{json}\n"));
+    }
+    Ok(index)
+}
+
+/// Local lightbox-style preview (max width 2400 JPEG; production display WebP is built on CI).
+const DISPLAY_MAX_WIDTH: u32 = 2400;
+
+fn write_gallery_display(source: &Path, dest: &Path) -> Result<(), String> {
+    let img = image::open(source).map_err(|e| e.to_string())?;
+    let scaled = resize_to_max_side(&img, DISPLAY_MAX_WIDTH);
+    let rgb = scaled.to_rgb8();
+    let mut buf = Vec::new();
+    let enc = JpegEncoder::new_with_quality(&mut buf, THUMB_JPEG_QUALITY);
+    enc.write_image(
+        rgb.as_raw(),
+        rgb.width(),
+        rgb.height(),
+        ExtendedColorType::Rgb8,
+    )
+    .map_err(|e| e.to_string())?;
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(dest, &buf).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn ensure_display_preview(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let src = PathBuf::from(&path);
+    if !src.is_file() {
+        return Err(format!("source not found: {path}"));
+    }
+    let meta = std::fs::metadata(&src).map_err(|e| e.to_string())?;
+    let modified = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let key = format!("{}:{}:{}", path, meta.len(), modified);
+    let digest = format!("{:x}", Sha256::digest(key.as_bytes()));
+    let cache = display_preview_cache_dir(&app)?.join(format!("{digest}.jpg"));
+    if !cache.is_file() {
+        write_gallery_display(&src, &cache)?;
+    }
+    cache
+        .to_str()
+        .map(str::to_string)
+        .ok_or_else(|| "invalid preview cache path".into())
+}
+
+#[tauri::command]
+fn load_upload_preferences(app: tauri::AppHandle) -> Result<Option<SessionDefaultsDraft>, String> {
+    let p = upload_preferences_path(&app)?;
+    if !p.is_file() {
+        return Ok(None);
+    }
+    let raw = std::fs::read_to_string(&p).map_err(|e| e.to_string())?;
+    let prefs = serde_json::from_str::<SessionDefaultsDraft>(&raw).map_err(|e| e.to_string())?;
+    Ok(Some(prefs))
+}
+
+#[tauri::command]
+fn save_upload_preferences(
+    app: tauri::AppHandle,
+    defaults: SessionDefaultsDraft,
+) -> Result<(), String> {
+    let p = upload_preferences_path(&app)?;
+    let json = serde_json::to_string_pretty(&defaults).map_err(|e| e.to_string())?;
+    std::fs::write(&p, format!("{json}\n")).map_err(|e| e.to_string())
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PathDuplicate {
@@ -571,7 +792,7 @@ fn load_draft_session(app: tauri::AppHandle) -> Result<LoadDraftSessionResult, S
     }
     let raw = std::fs::read_to_string(&p).map_err(|e| e.to_string())?;
     let mut session: DraftSession = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
-    if session.version != DRAFT_SESSION_VERSION {
+    if session.version != DRAFT_SESSION_VERSION && session.version != 1 {
         let _ = std::fs::remove_file(&p);
         return Ok(LoadDraftSessionResult {
             session: None,
@@ -748,7 +969,7 @@ fn gallery_dest_exists(app: tauri::AppHandle, dest_filename: String) -> Result<b
 
 #[tauri::command]
 fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
-    let cfg = load_config(app)?.ok_or("Save repository settings first.")?;
+    let cfg = load_config(app.clone())?.ok_or("Save repository settings first.")?;
     let pat = pat_entry()?.get_password().map_err(|_| {
         "No Git token saved. Add a GitHub personal access token with repo scope.".to_string()
     })?;
@@ -766,6 +987,7 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
         ensure_galleree_layout(&workdir)?;
         git_pull_rebase_autostash(&workdir, &extra, branch)?;
         restore_tracked_public_files(&workdir)?;
+        invalidate_gallery_hash_cache(&app);
         return Ok("Repository is ready (pulled latest).".into());
     }
 
@@ -788,6 +1010,7 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
         output_status(&mut clone)?;
         ensure_galleree_layout(&workdir)?;
         restore_tracked_public_files(&workdir)?;
+        invalidate_gallery_hash_cache(&app);
         return Ok("Repository cloned.".into());
     }
 
@@ -812,6 +1035,7 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
         output_status(&mut clone)?;
         ensure_galleree_layout(&workdir)?;
         restore_tracked_public_files(&workdir)?;
+        invalidate_gallery_hash_cache(&app);
         return Ok("Repository cloned (replaced invalid work folder).".into());
     }
 
@@ -829,6 +1053,7 @@ fn ensure_repo_ready(app: tauri::AppHandle) -> Result<String, String> {
     output_status(&mut clone)?;
     ensure_galleree_layout(&workdir)?;
     restore_tracked_public_files(&workdir)?;
+    invalidate_gallery_hash_cache(&app);
     Ok("Repository cloned.".into())
 }
 
@@ -1039,7 +1264,7 @@ fn check_duplicate_paths(
     queued_paths: Vec<String>,
 ) -> Result<CheckDuplicatePathsResult, String> {
     let gallery_dir = gallery_root_from_config(&app)?;
-    let gallery_index = index_gallery_content_hashes(&gallery_dir)?;
+    let gallery_index = index_gallery_content_hashes_cached(&app, &gallery_dir)?;
     let gallery_image_count = gallery_index.len();
 
     enum SeenKind {
@@ -1539,6 +1764,7 @@ fn stage_gallery_files_blocking(
 
         copied.push(it.dest_filename);
     }
+    invalidate_gallery_hash_cache(app);
     Ok(copied)
 }
 
@@ -1773,6 +1999,9 @@ pub fn run() {
             list_images_in_directory,
             check_duplicate_paths,
             check_for_app_update,
+            ensure_display_preview,
+            load_upload_preferences,
+            save_upload_preferences,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

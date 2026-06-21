@@ -1,0 +1,256 @@
+import type { GalleryRegistries, RegistryModalRequest } from "../registryTypes"
+import { SELECT_CUSTOM, SELECT_NONE } from "../registryTypes"
+import type { UploadRow } from "../types"
+import { RegistryFieldRow } from "./RegistryFieldRow"
+import { TagsInput } from "./TagsInput"
+
+type Props = {
+  row: UploadRow
+  registries: GalleryRegistries
+  knownTags: readonly string[]
+  copyrightPlaceholder?: string
+  titleMissing: boolean
+  updateRow: (id: string, patch: Partial<UploadRow>) => void
+  onOpenRegistryCreate: (request: RegistryModalRequest) => void
+}
+
+export function PhotoPanelBody({
+  row: r,
+  registries,
+  knownTags,
+  copyrightPlaceholder = "",
+  titleMissing,
+  updateRow,
+  onOpenRegistryCreate,
+}: Props) {
+  return (
+    <div className="photo-panel__body photo-panel__body--embedded">
+      <div className="photo-panel__preview">
+        <img src={r.previewSrc} alt="" />
+      </div>
+      <div className="photo-panel__fields">
+        <label className={`field ${titleMissing ? "field--warn" : ""}`}>
+          <span>Title (required)</span>
+          <input
+            value={r.title}
+            onChange={(e) => updateRow(r.id, { title: e.target.value })}
+            placeholder="Short title"
+            autoComplete="off"
+          />
+        </label>
+        <label className="field">
+          <span>Description</span>
+          <textarea
+            value={r.description}
+            onChange={(e) => updateRow(r.id, { description: e.target.value })}
+            placeholder="Optional context for the lightbox and search"
+            rows={2}
+          />
+        </label>
+        <label className="field">
+          <span>Tags (comma-separated)</span>
+          <TagsInput
+            value={r.tags}
+            knownTags={knownTags}
+            placeholder="photos, travel"
+            onChange={(tags) => updateRow(r.id, { tags })}
+          />
+        </label>
+        <label className="field">
+          <span>Location</span>
+          <input
+            value={r.location}
+            onChange={(e) => updateRow(r.id, { location: e.target.value })}
+            placeholder="City, UK"
+            autoComplete="off"
+          />
+        </label>
+        <label className="field">
+          <span>Date (optional)</span>
+          <input
+            type="date"
+            value={r.captureDate}
+            onChange={(e) => {
+              const nextDate = e.target.value
+              const patch: { captureDate: string; captureDateTimeIso?: string } = {
+                captureDate: nextDate,
+              }
+              const iso = r.captureDateTimeIso.trim()
+              if (iso && /^\d{4}-\d{2}-\d{2}T/.test(iso) && nextDate) {
+                patch.captureDateTimeIso = `${nextDate}T${iso.split("T")[1]}`
+              } else if (!nextDate) {
+                patch.captureDateTimeIso = ""
+              }
+              updateRow(r.id, patch)
+            }}
+          />
+        </label>
+
+        <RegistryFieldRow
+          label="Collection"
+          onCreate={() =>
+            onOpenRegistryCreate({
+              kind: "collection",
+              rowId: r.id,
+              field: "collectionSelect",
+            })
+          }
+          select={
+            <select
+              value={r.collectionSelect}
+              onChange={(e) => {
+                const slug = e.target.value
+                updateRow(r.id, {
+                  collectionSelect: slug,
+                  ...(slug === SELECT_NONE ? { collectionSetCover: false } : {}),
+                })
+              }}
+            >
+              <option value={SELECT_NONE}>No collection</option>
+              {registries.collections.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          }
+          extra={
+            r.collectionSelect !== SELECT_NONE ? (
+              <div className="collection-cover-option">
+                <label className="field field--inline">
+                  <input
+                    type="checkbox"
+                    checked={r.collectionSetCover}
+                    disabled={!r.destId}
+                    onChange={(e) =>
+                      updateRow(r.id, { collectionSetCover: e.target.checked })
+                    }
+                  />
+                  <span>Make cover photo</span>
+                </label>
+                {!r.destId ? (
+                  <p className="collection-cover-option__hint muted">
+                    Add a title so this photo gets a gallery id.
+                  </p>
+                ) : null}
+              </div>
+            ) : null
+          }
+        />
+
+        <RegistryFieldRow
+          label="Camera"
+          onCreate={() =>
+            onOpenRegistryCreate({
+              kind: "camera",
+              rowId: r.id,
+              field: "cameraSelect",
+            })
+          }
+          select={
+            <select
+              value={r.cameraSelect}
+              onChange={(e) => updateRow(r.id, { cameraSelect: e.target.value })}
+            >
+              <option value={SELECT_NONE}>Not set</option>
+              {registries.cameras.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}
+                </option>
+              ))}
+              <option value={SELECT_CUSTOM}>Custom label…</option>
+            </select>
+          }
+        />
+        {r.cameraSelect === SELECT_CUSTOM ? (
+          <label className="field">
+            <span>Camera label</span>
+            <input
+              value={r.cameraCustom}
+              onChange={(e) => updateRow(r.id, { cameraCustom: e.target.value })}
+              placeholder="Free text if not in registry"
+              autoComplete="off"
+            />
+          </label>
+        ) : null}
+
+        <RegistryFieldRow
+          label="Lens"
+          onCreate={() =>
+            onOpenRegistryCreate({
+              kind: "lens",
+              rowId: r.id,
+              field: "lensSelect",
+            })
+          }
+          select={
+            <select
+              value={r.lensSelect}
+              onChange={(e) => updateRow(r.id, { lensSelect: e.target.value })}
+            >
+              <option value={SELECT_NONE}>Not set</option>
+              {registries.lenses.map((l) => (
+                <option key={l.slug} value={l.slug}>
+                  {l.name}
+                </option>
+              ))}
+              <option value={SELECT_CUSTOM}>Custom label…</option>
+            </select>
+          }
+        />
+        {r.lensSelect === SELECT_CUSTOM ? (
+          <label className="field">
+            <span>Lens label</span>
+            <input
+              value={r.lensCustom}
+              onChange={(e) => updateRow(r.id, { lensCustom: e.target.value })}
+              placeholder="Free text if not in registry"
+              autoComplete="off"
+            />
+          </label>
+        ) : null}
+
+        <details className="photo-panel__more">
+          <summary>More metadata</summary>
+          <div className="photo-panel__more-fields">
+            <label className="field">
+              <span>Alt text</span>
+              <input
+                value={r.alt}
+                onChange={(e) => updateRow(r.id, { alt: e.target.value })}
+                placeholder="Accessibility description"
+                autoComplete="off"
+              />
+            </label>
+            <label className="field field--inline">
+              <input
+                type="checkbox"
+                checked={r.hidden}
+                onChange={(e) => updateRow(r.id, { hidden: e.target.checked })}
+              />
+              <span>Hidden (upload but do not show on site)</span>
+            </label>
+            <label className="field">
+              <span>Sort order</span>
+              <input
+                type="number"
+                value={r.sortOrder}
+                onChange={(e) => updateRow(r.id, { sortOrder: e.target.value })}
+                placeholder="Lower = earlier when dates match"
+              />
+            </label>
+            <label className="field">
+              <span>Copyright</span>
+              <input
+                value={r.copyright}
+                onChange={(e) => updateRow(r.id, { copyright: e.target.value })}
+                placeholder={copyrightPlaceholder || undefined}
+                autoComplete="off"
+              />
+            </label>
+          </div>
+        </details>
+      </div>
+    </div>
+  )
+}

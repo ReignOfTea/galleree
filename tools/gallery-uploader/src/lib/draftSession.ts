@@ -1,9 +1,12 @@
 import { appConvertFileSrc, appInvoke } from "../tauriBridge"
-import type { UploadRow } from "../types"
+import type { SessionDefaults } from "./sessionDefaults"
+import { EMPTY_SESSION_DEFAULTS } from "./sessionDefaults"
 
-export const DRAFT_SESSION_VERSION = 1
+export const DRAFT_SESSION_VERSION = 2
 
 export type DraftUploadRow = Omit<UploadRow, "previewSrc" | "destId" | "destExists">
+
+import type { UploadRow } from "../types"
 
 export type DraftSession = {
   version: number
@@ -12,6 +15,8 @@ export type DraftSession = {
   commitMessage: string
   selectedRowIds: string[]
   rows: DraftUploadRow[]
+  sessionDefaults?: SessionDefaults
+  compactView?: boolean
 }
 
 export type LoadDraftSessionResult = {
@@ -39,6 +44,8 @@ export function buildDraftSession(
   rows: UploadRow[],
   commitMessage: string,
   selectedRowIds: ReadonlySet<string>,
+  sessionDefaults: SessionDefaults,
+  compactView: boolean,
 ): DraftSession {
   return {
     version: DRAFT_SESSION_VERSION,
@@ -47,6 +54,8 @@ export function buildDraftSession(
     commitMessage,
     selectedRowIds: [...selectedRowIds],
     rows: rows.map(uploadRowToDraft),
+    sessionDefaults,
+    compactView,
   }
 }
 
@@ -79,4 +88,32 @@ export function formatDraftRestoreMessage(
     )
   }
   return parts.join(" ")
+}
+
+export async function loadUploadPreferences(): Promise<SessionDefaults | null> {
+  try {
+    const raw = await appInvoke<SessionDefaults | null>("load_upload_preferences")
+    return raw ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function saveUploadPreferences(defaults: SessionDefaults): Promise<void> {
+  await appInvoke("save_upload_preferences", { defaults })
+}
+
+export function normalizeSessionDefaults(
+  raw: SessionDefaults | undefined | null,
+): SessionDefaults {
+  if (!raw) return { ...EMPTY_SESSION_DEFAULTS }
+  return {
+    tags: raw.tags ?? "",
+    collectionSelect: raw.collectionSelect ?? "",
+    hidden: raw.hidden ?? null,
+    cameraSelect: raw.cameraSelect ?? "",
+    lensSelect: raw.lensSelect ?? "",
+    copyright: raw.copyright ?? "",
+    location: raw.location ?? "",
+  }
 }

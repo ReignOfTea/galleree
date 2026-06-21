@@ -27,8 +27,14 @@ import {
 import { applyImageHints } from "./lib/applyImageHints"
 import { uploadRowFromGalleryEdit } from "./lib/galleryEditRow"
 import { normalizeKnownTags, parseTagList } from "./lib/tagSuggest"
-import { BatchEditBar } from "./components/BatchEditBar"
+import { BatchEditBar, type BatchEditPatch, type CopyFromFirstField } from "./components/BatchEditBar"
+import { BulkTitleTools } from "./components/BulkTitleTools"
+import { DisplayPreviewModal } from "./components/DisplayPreviewModal"
+import { QueueToolbar } from "./components/QueueToolbar"
+import { SessionDefaultsBar } from "./components/SessionDefaultsBar"
 import { SiteConfigPanel } from "./components/SiteConfigPanel"
+import { UploadSummaryStrip } from "./components/UploadSummaryStrip"
+import { PhotoTable } from "./components/PhotoTable"
 import { titleFromFilename } from "./lib/titleFromFilename"
 import { fetchSiteCopyrightDefault } from "./lib/siteCopyrightDefault"
 import {
@@ -41,8 +47,21 @@ import {
   draftRowToUpload,
   formatDraftRestoreMessage,
   loadDraftSession,
+  loadUploadPreferences,
+  normalizeSessionDefaults,
   saveDraftSession,
+  saveUploadPreferences,
 } from "./lib/draftSession"
+import { applyBulkTitlesToRows } from "./lib/bulkTitle"
+import { mapPool } from "./lib/mapPool"
+import { sortRowsByCaptureDate } from "./lib/rowSort"
+import { jumpToNextMissingTitle, type ViewMode } from "./lib/queueUi"
+import { applySessionDefaults } from "./lib/sessionDefaults"
+import {
+  applySessionDefaultsToQueued,
+  hasMeaningfulSessionDefaults,
+  initialSessionDefaults,
+} from "./lib/sessionDefaultsApply"
 import {
   resolveCameraValue,
   resolveCollectionSlug,
@@ -54,9 +73,12 @@ import type {
   GalleryRegistries,
   RegistryModalRequest,
 } from "./registryTypes"
-import { SELECT_NONE } from "./registryTypes"
+import { SELECT_CUSTOM, SELECT_NONE } from "./registryTypes"
+import type { SessionDefaults } from "./lib/sessionDefaults"
 import type { GalleryPhotoEdit, UploadRow } from "./types"
 import "./App.css"
+
+const EXIF_READ_CONCURRENCY = 6
 
 type AppConfig = {
   repoUrl: string
@@ -185,6 +207,16 @@ export default function App() {
   const [copyrightPlaceholder, setCopyrightPlaceholder] = useState("")
   const persistReadyRef = useRef(false)
   const restoringDraftRef = useRef(false)
+  const panelRefs = useRef(new Map<string, HTMLElement>())
+  const lastJumpRowIdRef = useRef<string | null>(null)
+  const [sessionDefaults, setSessionDefaults] = useState<SessionDefaults>(() =>
+    initialSessionDefaults(),
+  )
+  const [viewMode, setViewMode] = useState<ViewMode>("compact")
+  const [expandedTableRowId, setExpandedTableRowId] = useState<string | null>(null)
+  const [displayPreviewOpen, setDisplayPreviewOpen] = useState(false)
+  const [lastPrefsAvailable, setLastPrefsAvailable] = useState(false)
+  const savedLastPrefsRef = useRef<SessionDefaults | null>(null)
   const selectedRowIdsKey = useMemo(
     () => [...selectedRowIds].sort().join("\u0001"),
     [selectedRowIds],
@@ -287,6 +319,7 @@ export default function App() {
     const value = await fetchSiteCopyrightDefault()
     defaultCopyrightRef.current = value
     setCopyrightPlaceholder(value)
+    setSessionDefaults((prev) => (prev.copyright === "" ? { ...prev, copyright: value } : prev))
   }, [])
 
   useEffect(() => {
@@ -303,6 +336,20 @@ export default function App() {
     if (!config) return
     void refreshSiteCopyrightDefault()
   }, [config, repoSyncKey, refreshSiteCopyrightDefault])
+
+  useEffect(() => {
+    if (!config) return
+    void (async () => {
+      const prefs = await loadUploadPreferences()
+      if (prefs && hasMeaningfulSessionDefaults(prefs)) {
+        savedLastPrefsRef.current = prefs
+        setLastPrefsAvailable(true)
+      } else {
+        savedLastPrefsRef.current = null
+        setLastPrefsAvailable(false)
+      }
+    })()
+  }, [config?.repoUrl, config?.branch])
 
   useEffect(() => {
     if (!config || !isTauri()) return
@@ -354,6 +401,8 @@ export default function App() {
       const restored = session.rows.map(draftRowToUpload)
       setRows(restored)
       setCommitMessage(session.commitMessage)
+      setSessionDefaults(normalizeSessionDefaults(session.sessionDefaults))
+      setViewMode(session.compactView ? "compact" : "accordion")
       const ids = new Set(restored.map((r) => r.id))
       setSelectedRowIds(
         new Set(session.selectedRowIds.filter((id) => ids.has(id))),
@@ -386,13 +435,15 @@ export default function App() {
           rowsRef.current,
           commitMessage,
           selectedRowIds,
+          sessionDefaults,
+          viewMode === "compact",
         ),
       ).catch(() => {
         /* ignore */
       })
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [rows, commitMessage, selectedRowIdsKey, config])
+  }, [rows, commitMessage, selectedRowIdsKey, sessionDefaults, viewMode, config])
 
   const needsSetup = config === null
 
@@ -434,9 +485,12 @@ export default function App() {
         return
       }
 
-      const nextRows: UploadRow[] = []
       const copyrightDefault = defaultCopyrightRef.current
-      for (const p of pathsToAdd) {
+      const defaultsForNew = sessionDefaults.copyright.trim()
+        ? sessionDefaults
+        : { ...sessionDefaults, copyright: copyrightDefault }
+
+      const built = await mapPool(pathsToAdd, EXIF_READ_CONCURRENCY, async (p) => {
         const row = newRowFromPath(p, copyrightDefault)
         const hints = await appInvoke<{
           description: string | null
@@ -456,11 +510,13 @@ export default function App() {
           },
           registries,
         )
+        applySessionDefaults(row, defaultsForNew)
         if (!row.title.trim()) {
           row.title = titleFromFilename(p)
         }
-        nextRows.push(row)
-      }
+        return row
+      })
+      const nextRows = built
       const have = new Set(rowsRef.current.map((x) => x.sourcePath))
       const add = nextRows.filter((row) => !have.has(row.sourcePath))
       if (add.length > 0) {
@@ -479,7 +535,7 @@ export default function App() {
     } finally {
       setBusy(false)
     }
-  }, [config, registries.cameras])
+  }, [config, registries, sessionDefaults])
 
   useEffect(() => {
     if (!isTauri()) return
@@ -584,11 +640,7 @@ export default function App() {
     }
   }
 
-  const applyBatchEdit = (patch: {
-    mergeTags?: string
-    collectionSelect?: string
-    hidden?: boolean
-  }) => {
+  const applyBatchEdit = (patch: BatchEditPatch) => {
     const extraTags = patch.mergeTags ? parseTagList(patch.mergeTags) : []
     setRows((list) =>
       list.map((r) => {
@@ -610,6 +662,20 @@ export default function App() {
         if (patch.hidden !== undefined) {
           next.hidden = patch.hidden
         }
+        if (patch.cameraSelect !== undefined) {
+          next.cameraSelect = patch.cameraSelect
+          if (patch.cameraSelect !== SELECT_CUSTOM) next.cameraCustom = ""
+        }
+        if (patch.lensSelect !== undefined) {
+          next.lensSelect = patch.lensSelect
+          if (patch.lensSelect !== SELECT_CUSTOM) next.lensCustom = ""
+        }
+        if (patch.location !== undefined) {
+          next.location = patch.location
+        }
+        if (patch.copyright !== undefined) {
+          next.copyright = patch.copyright
+        }
         return next
       }),
     )
@@ -619,6 +685,102 @@ export default function App() {
         : `Batch edits applied to all ${rows.length} photo(s).`,
     )
   }
+
+  const copyFromFirstSelected = (fields: CopyFromFirstField[]) => {
+    const scope =
+      selectedRowIds.size > 0
+        ? rows.filter((r) => selectedRowIds.has(r.id))
+        : rows
+    const source = scope[0]
+    if (!source) {
+      setStatus("Select at least one photo to copy from.")
+      return
+    }
+    setRows((list) =>
+      list.map((r) => {
+        const inScope =
+          selectedRowIds.size === 0 || selectedRowIds.has(r.id)
+        if (!inScope || r.id === source.id) return r
+        const next: UploadRow = { ...r }
+        for (const field of fields) {
+          switch (field) {
+            case "tags":
+              next.tags = source.tags
+              break
+            case "location":
+              next.location = source.location
+              break
+            case "description":
+              next.description = source.description
+              break
+            case "collection":
+              next.collectionSelect = source.collectionSelect
+              next.collectionSetCover = source.collectionSetCover
+              break
+            case "camera":
+              next.cameraSelect = source.cameraSelect
+              next.cameraCustom = source.cameraCustom
+              break
+            case "lens":
+              next.lensSelect = source.lensSelect
+              next.lensCustom = source.lensCustom
+              break
+            case "copyright":
+              next.copyright = source.copyright
+              break
+            default:
+              break
+          }
+        }
+        return next
+      }),
+    )
+    setStatus(`Copied metadata from “${source.title.trim() || "first selected"}”.`)
+  }
+
+  const applyBulkTitle = (
+    mode:
+      | { kind: "prefix"; text: string }
+      | { kind: "suffix"; text: string }
+      | { kind: "stripCameraPrefix" }
+      | { kind: "number"; start: number; pad: number },
+  ) => {
+    const scope = selectedRowIds.size > 0 ? selectedRowIds : null
+    setRows((list) => applyBulkTitlesToRows(list, scope, mode))
+    setStatus("Bulk title update applied.")
+  }
+
+  const sortQueueByCaptureDate = () => {
+    setRows((list) => sortRowsByCaptureDate(list))
+    setStatus("Queue sorted by capture date (oldest first).")
+  }
+
+  const handleJumpToMissingTitle = useCallback(() => {
+    const jumped = jumpToNextMissingTitle(
+      rows,
+      panelRefs.current,
+      lastJumpRowIdRef.current ?? undefined,
+    )
+    if (!jumped) {
+      setStatus("Every photo already has a title.")
+      return
+    }
+    lastJumpRowIdRef.current = jumped
+    if (viewMode === "compact") {
+      setExpandedTableRowId(jumped)
+    }
+  }, [rows, viewMode])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === "n") {
+        e.preventDefault()
+        handleJumpToMissingTitle()
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [handleJumpToMissingTitle])
 
   /** Recompute gallery ids only when title is added/cleared, extension changes, or rows change — not on every title keystroke. */
   const destKey = useMemo(
@@ -889,6 +1051,9 @@ export default function App() {
       }
       setRows([])
       setSelectedRowIds(new Set())
+      void saveUploadPreferences(sessionDefaults)
+      savedLastPrefsRef.current = sessionDefaults
+      setLastPrefsAvailable(hasMeaningfulSessionDefaults(sessionDefaults))
       void clearPersistedDraft()
       setErrorDetail(null)
       setStatus(msg || "Upload finished. Your photos should appear on the site after the next deploy.")
@@ -1069,8 +1234,45 @@ export default function App() {
               </button>
             </div>
 
+            <SessionDefaultsBar
+              defaults={sessionDefaults}
+              registries={registries}
+              knownTags={knownTags}
+              disabled={busy}
+              queuedCount={rows.length}
+              lastPrefsAvailable={lastPrefsAvailable && rows.length === 0}
+              onUseLastPrefs={() => {
+                if (savedLastPrefsRef.current) {
+                  setSessionDefaults(savedLastPrefsRef.current)
+                  setStatus("Loaded defaults from your last upload.")
+                }
+              }}
+              onChange={(patch) => setSessionDefaults((d) => ({ ...d, ...patch }))}
+              onApplyToQueued={() => {
+                setRows((list) =>
+                  applySessionDefaultsToQueued(list, sessionDefaults, {
+                    force: true,
+                    skipEdits: true,
+                  }),
+                )
+                setStatus(`Session defaults applied to ${rows.length} queued photo(s).`)
+              }}
+              onApplyToNewOnly={() => {
+                setStatus("Defaults will apply to photos you add next (not the current queue).")
+              }}
+            />
+
             {rows.length > 0 ? (
               <>
+                <QueueToolbar
+                  rowCount={rows.length}
+                  viewMode={viewMode}
+                  disabled={busy}
+                  onViewModeChange={setViewMode}
+                  onSortByCaptureDate={sortQueueByCaptureDate}
+                  onJumpToMissingTitle={handleJumpToMissingTitle}
+                  onOpenDisplayPreview={() => setDisplayPreviewOpen(true)}
+                />
                 <BatchEditBar
                   rowCount={rows.length}
                   selectedCount={selectedRowIds.size}
@@ -1078,31 +1280,72 @@ export default function App() {
                   knownTags={knownTags}
                   disabled={busy}
                   onApply={applyBatchEdit}
+                  onCopyFromFirst={copyFromFirstSelected}
                   onSelectAll={() => setSelectedRowIds(new Set(rows.map((r) => r.id)))}
                   onClearSelection={() => setSelectedRowIds(new Set())}
                 />
-                <PhotoPanels
-                  rows={rows}
-                  registries={registries}
-                  knownTags={knownTags}
-                  copyrightPlaceholder={copyrightPlaceholder}
-                  selectedIds={selectedRowIds}
-                  onToggleSelect={(id, selected) => {
-                    setSelectedRowIds((prev) => {
-                      const next = new Set(prev)
-                      if (selected) next.add(id)
-                      else next.delete(id)
-                      return next
-                    })
-                  }}
-                  updateRow={updateRow}
-                  getDestPreview={getDestPreview}
-                  onOpenRegistryCreate={setRegistryModal}
+                <BulkTitleTools
+                  rowCount={rows.length}
+                  selectedCount={selectedRowIds.size}
+                  disabled={busy}
+                  onPrefix={(text) => applyBulkTitle({ kind: "prefix", text })}
+                  onSuffix={(text) => applyBulkTitle({ kind: "suffix", text })}
+                  onStripCameraPrefix={() => applyBulkTitle({ kind: "stripCameraPrefix" })}
+                  onNumber={(start, pad) => applyBulkTitle({ kind: "number", start, pad })}
                 />
+                {viewMode === "compact" ? (
+                  <PhotoTable
+                    rows={rows}
+                    registries={registries}
+                    knownTags={knownTags}
+                    copyrightPlaceholder={copyrightPlaceholder}
+                    selectedIds={selectedRowIds}
+                    expandedId={expandedTableRowId}
+                    onToggleSelect={(id, selected) => {
+                      setSelectedRowIds((prev) => {
+                        const next = new Set(prev)
+                        if (selected) next.add(id)
+                        else next.delete(id)
+                        return next
+                      })
+                    }}
+                    onExpand={setExpandedTableRowId}
+                    updateRow={updateRow}
+                    getDestPreview={getDestPreview}
+                    onOpenRegistryCreate={setRegistryModal}
+                    panelRefs={panelRefs}
+                  />
+                ) : (
+                  <PhotoPanels
+                    rows={rows}
+                    registries={registries}
+                    knownTags={knownTags}
+                    copyrightPlaceholder={copyrightPlaceholder}
+                    selectedIds={selectedRowIds}
+                    onToggleSelect={(id, selected) => {
+                      setSelectedRowIds((prev) => {
+                        const next = new Set(prev)
+                        if (selected) next.add(id)
+                        else next.delete(id)
+                        return next
+                      })
+                    }}
+                    updateRow={updateRow}
+                    getDestPreview={getDestPreview}
+                    onOpenRegistryCreate={setRegistryModal}
+                    panelRefs={panelRefs}
+                  />
+                )}
               </>
             ) : (
               <p className="muted">No files yet.</p>
             )}
+
+            <UploadSummaryStrip
+              rows={rows}
+              registries={registries}
+              allTitlesOk={allTitlesOk}
+            />
 
             <label className="field">
               <span>Optional note for this upload</span>
@@ -1141,6 +1384,10 @@ export default function App() {
           onCreated={handleRegistryCreated}
           onClose={() => setRegistryModal(null)}
         />
+      ) : null}
+
+      {displayPreviewOpen && rows.length > 0 ? (
+        <DisplayPreviewModal rows={rows} onClose={() => setDisplayPreviewOpen(false)} />
       ) : null}
     </div>
   )
