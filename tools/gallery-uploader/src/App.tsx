@@ -9,7 +9,6 @@ import {
 } from "./tauriBridge"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  galleryMetaFromUploadFields,
   isValidGalleryImageId,
   normalizeImageExtension,
   randomGalleryImageFilename,
@@ -26,6 +25,7 @@ import {
 } from "./registryService"
 import { applyImageHints, type ImageHints } from "./lib/applyImageHints"
 import { resolveExifDisplayForRow } from "./lib/exifDisplayAtUpload"
+import { galleryMetaForUpload } from "./lib/uploadGalleryMeta"
 import { uploadRowFromGalleryEdit } from "./lib/galleryEditRow"
 import { normalizeKnownTags, parseTagList } from "./lib/tagSuggest"
 import { BatchEditBar, type BatchEditPatch, type CopyFromFirstField } from "./components/BatchEditBar"
@@ -1144,7 +1144,7 @@ export default function App() {
       const items = await mapPool(ready, EXIF_READ_CONCURRENCY, async (r) => {
         const exifDisplay = await resolveExifDisplayForRow(r)
         const metaJson = serializeGalleryMeta(
-          galleryMetaFromUploadFields(
+          galleryMetaForUpload(
             rowFieldsFromRow(r),
             r.destId,
             r.editExistingId ? r.preserveUploadedAt ?? undefined : undefined,
