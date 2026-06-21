@@ -35,4 +35,13 @@ test.describe('gallery smoke', () => {
     await expect(page.getByRole('dialog')).toBeVisible()
     await expect(page.getByLabel('Close photo viewer')).toBeVisible()
   })
+
+  test('collection deep link survives manifest load', async ({ page }) => {
+    const slug = 'makerfield-day-of-action'
+    await page.goto(`/?collection=${slug}`)
+    await waitForGalleryReady(page)
+    await expect(page).toHaveURL(new RegExp(`[?&]collection=${slug}`))
+    await expect(page.getByLabel('Current collection')).toBeVisible()
+    await expect(page.locator('.collection-view-bar-title')).not.toHaveCount(0)
+  })
 })

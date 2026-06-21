@@ -172,12 +172,17 @@ export default function App() {
   }, [clearAllFilters])
 
   useEffect(() => {
+    const manifestReady = manifest.status === 'ready'
     const syncFromLocation = () => {
       urlSyncFromBrowserRef.current = true
       const state = parseGalleryUrlState()
       const slug = state.collection
       if (!slug) {
         setActiveCollectionSlug(null)
+      } else if (!manifestReady) {
+        // Keep deep-link slug until collections are loaded; validating too early
+        // would strip ?collection= from the URL and land on the homepage.
+        setActiveCollectionSlug(slug)
       } else {
         const valid = collections.some((c) => c.slug === slug)
         setActiveCollectionSlug(valid ? slug : null)
@@ -197,7 +202,7 @@ export default function App() {
       window.removeEventListener('popstate', syncFromLocation)
       window.removeEventListener('hashchange', syncFromLocation)
     }
-  }, [collections])
+  }, [collections, manifest.status])
 
   const scopeEntries = useMemo(() => {
     if (!activeCollectionSlug) return entriesWithMeta
