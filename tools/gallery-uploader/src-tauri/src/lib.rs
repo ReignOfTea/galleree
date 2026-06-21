@@ -138,6 +138,8 @@ pub struct SessionDefaultsDraft {
     pub copyright: String,
     #[serde(default)]
     pub location: String,
+    #[serde(default)]
+    pub capture_date: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

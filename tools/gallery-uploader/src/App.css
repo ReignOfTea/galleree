@@ -7,6 +7,9 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  --thumb-table-size: 144px;
+  --thumb-summary-size: 168px;
+  --thumb-preview-max-height: min(68vh, 720px);
 }
 
 * {
@@ -18,7 +21,7 @@ body {
 }
 
 .app {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 20px 20px 40px;
 }
@@ -557,8 +560,8 @@ code.warn {
 .photo-panel__summary {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 16px;
+  padding: 12px 14px;
   cursor: pointer;
   list-style: none;
   font-weight: 500;
@@ -573,8 +576,8 @@ code.warn {
 }
 
 .photo-panel__summary-thumb {
-  width: 56px;
-  height: 56px;
+  width: var(--thumb-summary-size);
+  height: var(--thumb-summary-size);
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
@@ -621,8 +624,8 @@ code.warn {
 
 .photo-panel__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 20px;
   padding: 0 14px 14px;
   border-top: 1px solid #eef2f7;
 }
@@ -642,7 +645,7 @@ code.warn {
 
 .photo-panel__preview img {
   max-width: 100%;
-  max-height: min(52vh, 480px);
+  max-height: var(--thumb-preview-max-height);
   width: auto;
   height: auto;
   object-fit: contain;
@@ -899,6 +902,7 @@ code.warn {
 
   .header h1,
   .card h2,
+  .registry-modal-title,
   .registry-kind-list__title,
   details summary,
   .site-config-details summary {
@@ -946,6 +950,87 @@ code.warn {
   .photo-panel__badge {
     background: #243047;
     color: #dbe8ff;
+  }
+
+  .session-defaults {
+    background: #243047;
+    border-color: #3a5368;
+  }
+
+  .queue-toolbar {
+    background: #2a323d;
+    border-color: #3a4553;
+  }
+
+  .bulk-title-tools {
+    background: #2a323d;
+    border-color: #3a4553;
+  }
+
+  .upload-summary--ready {
+    background: #1e3328;
+    border-color: #3d6b52;
+    color: #b8e6c8;
+  }
+
+  .upload-summary--warn {
+    background: #3a3020;
+    border-color: #6b5a32;
+    color: #f0d9a8;
+  }
+
+  .photo-table-wrap {
+    border-color: #3a4553;
+  }
+
+  .photo-table th,
+  .photo-table td {
+    border-bottom-color: #2f3844;
+  }
+
+  .photo-table th {
+    background: #2a323d;
+    color: #aab6c4;
+  }
+
+  .photo-table__thumb {
+    border-color: #3a4553;
+  }
+
+  .photo-table__title--warn {
+    border-color: #c98642;
+    background: #3a2a1f;
+    color: #e8eef5;
+  }
+
+  .photo-table__description {
+    background: #2a323d;
+    border-color: #3a4553;
+    color: #e8eef5;
+  }
+
+  .photo-table__row--warn {
+    background: #2e261c;
+  }
+
+  .photo-table__detail-row td {
+    background: #222831;
+  }
+
+  .display-preview-modal {
+    background: #222831;
+    border: 1px solid #2f3844;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  }
+
+  .display-preview-modal__header,
+  .display-preview-modal__footer {
+    border-color: #2f3844;
+    color: #e8eef5;
+  }
+
+  .modal-backdrop {
+    background: rgba(0, 0, 0, 0.78);
   }
 }
 
@@ -1116,9 +1201,9 @@ code.warn {
 
 .photo-table th,
 .photo-table td {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid #eef2f7;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .photo-table th {
@@ -1133,7 +1218,7 @@ code.warn {
 }
 
 .photo-table__col-thumb {
-  width: 4.5rem;
+  width: calc(var(--thumb-table-size) + 1rem);
 }
 
 .photo-table__col-actions {
@@ -1141,10 +1226,10 @@ code.warn {
 }
 
 .photo-table__thumb {
-  width: 48px;
-  height: 48px;
+  width: var(--thumb-table-size);
+  height: var(--thumb-table-size);
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
   display: block;
 }
@@ -1152,6 +1237,15 @@ code.warn {
 .photo-table__title {
   width: 100%;
   min-width: 10rem;
+}
+
+.photo-table__description {
+  width: 100%;
+  min-width: 12rem;
+  min-height: 3.25rem;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.9rem;
 }
 
 .photo-table__title--warn {
@@ -1170,7 +1264,8 @@ code.warn {
 
 .photo-table__detail-row td {
   background: #fbfcfe;
-  padding: 12px;
+  padding: 14px;
+  vertical-align: top;
 }
 
 .photo-table__more {

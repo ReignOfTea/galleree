@@ -1,7 +1,7 @@
 import { SELECT_NONE } from "../registryTypes"
 import type { UploadRow } from "../types"
 import type { SessionDefaults } from "./sessionDefaults"
-import { applySessionDefaults, EMPTY_SESSION_DEFAULTS } from "./sessionDefaults"
+import { applySessionDefaults, applyCaptureDateDefault, EMPTY_SESSION_DEFAULTS } from "./sessionDefaults"
 import { DEFAULT_CAMERA_SLUG, DEFAULT_LENS_SLUG } from "./equipmentDefaults"
 
 /** Sensible starter defaults for a new upload session (Sony α7 IV + Tamron 28-200). */
@@ -26,7 +26,8 @@ export function hasMeaningfulSessionDefaults(
     defaults.cameraSelect !== baseline.cameraSelect ||
     defaults.lensSelect !== baseline.lensSelect ||
     defaults.copyright !== baseline.copyright ||
-    defaults.location !== baseline.location
+    defaults.location !== baseline.location ||
+    defaults.captureDate !== baseline.captureDate
   )
 }
 
@@ -40,6 +41,7 @@ function applySessionDefaultsForced(row: UploadRow, defaults: SessionDefaults): 
   if (defaults.lensSelect !== SELECT_NONE) row.lensSelect = defaults.lensSelect
   if (defaults.copyright.trim()) row.copyright = defaults.copyright.trim()
   if (defaults.location.trim()) row.location = defaults.location.trim()
+  applyCaptureDateDefault(row, defaults.captureDate, { force: true })
 }
 
 /** Apply session defaults to all queued rows (or only non-edit rows). */

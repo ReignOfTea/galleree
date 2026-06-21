@@ -48,6 +48,7 @@ export function PhotoTable({
             <th scope="col" className="photo-table__col-check" />
             <th scope="col" className="photo-table__col-thumb" />
             <th scope="col">Title</th>
+            <th scope="col">Description</th>
             <th scope="col">Collection</th>
             <th scope="col">Tags</th>
             <th scope="col" className="photo-table__col-actions" />
@@ -101,6 +102,15 @@ export function PhotoTable({
                     </div>
                   </td>
                   <td>
+                    <textarea
+                      className="photo-table__description"
+                      value={r.description}
+                      rows={2}
+                      placeholder="Optional context"
+                      onChange={(e) => updateRow(r.id, { description: e.target.value })}
+                    />
+                  </td>
+                  <td>
                     <select
                       value={r.collectionSelect}
                       onChange={(e) =>
@@ -140,7 +150,7 @@ export function PhotoTable({
                 </tr>
                 {expanded ? (
                   <tr className="photo-table__detail-row">
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <PhotoPanelBody
                         row={r}
                         registries={registries}

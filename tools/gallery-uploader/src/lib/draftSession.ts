@@ -115,5 +115,6 @@ export function normalizeSessionDefaults(
     lensSelect: raw.lensSelect ?? "",
     copyright: raw.copyright ?? "",
     location: raw.location ?? "",
+    captureDate: raw.captureDate ?? "",
   }
 }

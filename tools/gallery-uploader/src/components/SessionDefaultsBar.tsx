@@ -109,6 +109,15 @@ export function SessionDefaultsBar({
           />
         </label>
         <label className="field session-defaults__field">
+          <span>Date</span>
+          <input
+            type="date"
+            value={defaults.captureDate}
+            disabled={disabled}
+            onChange={(e) => onChange({ captureDate: e.target.value })}
+          />
+        </label>
+        <label className="field session-defaults__field">
           <span>Copyright</span>
           <input
             value={defaults.copyright}
