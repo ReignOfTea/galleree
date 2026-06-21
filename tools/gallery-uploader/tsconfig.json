@@ -21,6 +21,7 @@
     "noFallthroughCasesInSwitch": true,
     "paths": {
       "@galleree/gallery-meta": ["../../src/lib/galleryMeta.ts"],
+      "@galleree/exif-display": ["../../src/lib/exifDisplay.ts"],
       "@galleree/gallery-collection": ["../../src/lib/galleryCollectionMeta.ts"],
       "@galleree/gallery-equipment": ["../../src/lib/galleryEquipmentMeta.ts"],
       "@galleree/gallery-tags": ["../../src/lib/galleryTags.ts"],

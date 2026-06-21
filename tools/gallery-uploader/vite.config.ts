@@ -15,6 +15,7 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       "@galleree/gallery-meta": path.join(repoRoot, "src/lib/galleryMeta.ts"),
+      "@galleree/exif-display": path.join(repoRoot, "src/lib/exifDisplay.ts"),
       "@galleree/gallery-collection": path.join(
         repoRoot,
         "src/lib/galleryCollectionMeta.ts",

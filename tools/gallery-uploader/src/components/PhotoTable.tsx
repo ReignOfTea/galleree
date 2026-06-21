@@ -24,6 +24,8 @@ type Props = {
   getDestPreview: (r: UploadRow) => { id: string; file: string } | null
   onOpenRegistryCreate: (request: RegistryModalRequest) => void
   panelRefs: React.MutableRefObject<Map<string, HTMLElement>>
+  onReplaceImage: (rowId: string) => void
+  onRevertEditImage: (rowId: string) => void
 }
 
 export function PhotoTable({
@@ -39,6 +41,8 @@ export function PhotoTable({
   getDestPreview,
   onOpenRegistryCreate,
   panelRefs,
+  onReplaceImage,
+  onRevertEditImage,
 }: Props) {
   return (
     <div className="photo-table-wrap">
@@ -58,13 +62,13 @@ export function PhotoTable({
           {rows.map((r) => {
             const name = basename(r.sourcePath)
             const titleMissing = !r.title.trim()
-            const destClash = r.destExists && !r.editExistingId
+            const destOverwrite = r.destExists && !r.editExistingId
             const preview = getDestPreview(r)
             const expanded = expandedId === r.id
-            const rowClass = destClash
-              ? "photo-table__row--clash"
-              : titleMissing
-                ? "photo-table__row--warn"
+            const rowClass = titleMissing
+              ? "photo-table__row--warn"
+              : destOverwrite
+                ? "photo-table__row--overwrite"
                 : undefined
 
             return (
@@ -76,7 +80,7 @@ export function PhotoTable({
                   }}
                   data-row-id={r.id}
                   data-title-missing={titleMissing ? "true" : undefined}
-                  data-dest-clash={destClash ? "true" : undefined}
+                  data-dest-overwrite={destOverwrite ? "true" : undefined}
                   className={rowClass}
                 >
                   <td>
@@ -101,10 +105,10 @@ export function PhotoTable({
                     <div className="photo-table__meta muted">
                       {preview ? (
                         <>
-                          <code className={destClash ? "warn" : ""}>{preview.file}</code>
-                          {destClash ? (
-                            <span className="photo-table__clash-badge">
-                              Already in gallery — change title or use Edit existing…
+                          <code className={destOverwrite ? "warn" : ""}>{preview.file}</code>
+                          {destOverwrite ? (
+                            <span className="photo-table__overwrite-badge">
+                              Will replace the existing file in the gallery on upload
                             </span>
                           ) : null}
                         </>
@@ -171,6 +175,8 @@ export function PhotoTable({
                         titleMissing={titleMissing}
                         updateRow={updateRow}
                         onOpenRegistryCreate={onOpenRegistryCreate}
+                        onReplaceImage={onReplaceImage}
+                        onRevertEditImage={onRevertEditImage}
                       />
                     </td>
                   </tr>

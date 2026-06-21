@@ -19,6 +19,8 @@ type Props = {
   getDestPreview: (r: UploadRow) => { id: string; file: string } | null
   onOpenRegistryCreate: (request: RegistryModalRequest) => void
   panelRefs: React.MutableRefObject<Map<string, HTMLElement>>
+  onReplaceImage: (rowId: string) => void
+  onRevertEditImage: (rowId: string) => void
 }
 
 export function PhotoPanels({
@@ -32,13 +34,15 @@ export function PhotoPanels({
   getDestPreview,
   onOpenRegistryCreate,
   panelRefs,
+  onReplaceImage,
+  onRevertEditImage,
 }: Props) {
   return (
     <div className="photo-panels">
       {rows.map((r) => {
         const name = basename(r.sourcePath)
         const titleMissing = !r.title.trim()
-        const destClash = r.destExists && !r.editExistingId
+        const destOverwrite = r.destExists && !r.editExistingId
         const preview = getDestPreview(r)
 
         return (
@@ -50,8 +54,8 @@ export function PhotoPanels({
             }}
             data-row-id={r.id}
             data-title-missing={titleMissing ? "true" : undefined}
-            data-dest-clash={destClash ? "true" : undefined}
-            className={`photo-panel${destClash ? " photo-panel--clash" : ""}`}
+            data-dest-overwrite={destOverwrite ? "true" : undefined}
+            className={`photo-panel${destOverwrite ? " photo-panel--overwrite" : ""}`}
           >
             <summary className="photo-panel__summary">
               <label
@@ -73,16 +77,21 @@ export function PhotoPanels({
                 {r.editExistingId ? (
                   <span className="photo-panel__badge">Editing</span>
                 ) : null}
+                {r.editExistingId && r.replaceImageFile ? (
+                  <span className="photo-panel__badge photo-panel__badge--overwrite">
+                    Replacing image
+                  </span>
+                ) : null}
                 {titleMissing ? (
                   <span className="photo-panel__badge photo-panel__badge--warn">Title required</span>
                 ) : null}
-                {destClash ? (
-                  <span className="photo-panel__badge photo-panel__badge--clash">
-                    Already in gallery
+                {destOverwrite ? (
+                  <span className="photo-panel__badge photo-panel__badge--overwrite">
+                    Will replace existing
                   </span>
                 ) : null}
                 {preview ? (
-                  <code className={`photo-panel__dest ${destClash ? "warn" : ""}`}>
+                  <code className={`photo-panel__dest ${destOverwrite ? "warn" : ""}`}>
                     {preview.file}
                   </code>
                 ) : (
@@ -100,6 +109,8 @@ export function PhotoPanels({
               titleMissing={titleMissing}
               updateRow={updateRow}
               onOpenRegistryCreate={onOpenRegistryCreate}
+              onReplaceImage={onReplaceImage}
+              onRevertEditImage={onRevertEditImage}
             />
           </details>
         )

@@ -29,6 +29,14 @@ export type UploadRow = {
   editExistingId: string | null
   /** Preserve sidecar uploadedAt when editing. */
   preserveUploadedAt: string | null
+  /** Sidecar exifDisplay preserved on metadata-only edits. */
+  preserveExifDisplay: { label: string; value: string }[] | null
+  /** Path to the gallery file when loaded via Edit existing. */
+  editGalleryImagePath: string | null
+  /** Original dest filename when editing (for cleanup if extension changes). */
+  editOriginalFilename: string | null
+  /** When true, upload replaces the gallery original bytes for this id. */
+  replaceImageFile: boolean
 }
 
 export type GalleryPhotoEdit = {
@@ -49,4 +57,5 @@ export type GalleryPhotoEdit = {
   sortOrder: number | null
   copyright: string | null
   uploadedAt: string | null
+  exifDisplay: { label: string; value: string }[] | null
 }

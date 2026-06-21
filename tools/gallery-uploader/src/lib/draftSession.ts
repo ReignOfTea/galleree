@@ -35,6 +35,10 @@ export function draftRowToUpload(row: DraftUploadRow): UploadRow {
     previewSrc: appConvertFileSrc(row.sourcePath),
     destId: "",
     destExists: false,
+    preserveExifDisplay: row.preserveExifDisplay ?? null,
+    editGalleryImagePath: row.editGalleryImagePath ?? null,
+    editOriginalFilename: row.editOriginalFilename ?? null,
+    replaceImageFile: row.replaceImageFile ?? false,
   }
 }
 

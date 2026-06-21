@@ -42,5 +42,9 @@ export function uploadRowFromGalleryEdit(
     destExists: true,
     editExistingId: photo.id,
     preserveUploadedAt: photo.uploadedAt,
+    preserveExifDisplay: photo.exifDisplay,
+    editGalleryImagePath: photo.imagePath,
+    editOriginalFilename: photo.destFilename,
+    replaceImageFile: false,
   }
 }

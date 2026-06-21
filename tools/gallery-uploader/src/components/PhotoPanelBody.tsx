@@ -12,6 +12,14 @@ type Props = {
   titleMissing: boolean
   updateRow: (id: string, patch: Partial<UploadRow>) => void
   onOpenRegistryCreate: (request: RegistryModalRequest) => void
+  onReplaceImage: (rowId: string) => void
+  onRevertEditImage: (rowId: string) => void
+}
+
+function basenamePath(p: string): string {
+  const s = p.replace(/\\/g, "/")
+  const i = s.lastIndexOf("/")
+  return i >= 0 ? s.slice(i + 1) : s
 }
 
 export function PhotoPanelBody({
@@ -22,6 +30,8 @@ export function PhotoPanelBody({
   titleMissing,
   updateRow,
   onOpenRegistryCreate,
+  onReplaceImage,
+  onRevertEditImage,
 }: Props) {
   return (
     <div className="photo-panel__body photo-panel__body--embedded">
@@ -29,6 +39,33 @@ export function PhotoPanelBody({
         <img src={r.previewSrc} alt="" />
       </div>
       <div className="photo-panel__fields">
+        {r.editExistingId ? (
+          <div className="photo-panel__edit-image">
+            <p className="photo-panel__edit-image-lead muted">
+              {r.replaceImageFile
+                ? "A new file will replace the gallery original on upload."
+                : "Metadata-only edit — the gallery file on disk stays as-is unless you replace it."}
+            </p>
+            {r.replaceImageFile ? (
+              <>
+                <p className="photo-panel__edit-image-file">
+                  New file: <code>{basenamePath(r.sourcePath)}</code>
+                </p>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => onRevertEditImage(r.id)}
+                >
+                  Keep original image
+                </button>
+              </>
+            ) : (
+              <button type="button" className="ghost" onClick={() => onReplaceImage(r.id)}>
+                Replace image file…
+              </button>
+            )}
+          </div>
+        ) : null}
         <label className={`field ${titleMissing ? "field--warn" : ""}`}>
           <span>Title (required)</span>
           <input

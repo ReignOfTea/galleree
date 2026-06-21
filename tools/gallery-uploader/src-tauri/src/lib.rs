@@ -62,6 +62,16 @@ pub struct StageItem {
     /// When true, only writes meta/thumb; image must already exist at dest.
     #[serde(default)]
     pub skip_image_copy: bool,
+    /// Remove a previous gallery original when replacing with a new extension.
+    #[serde(default)]
+    pub remove_dest_filename: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExifDisplayRow {
+    pub label: String,
+    pub value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,6 +94,7 @@ pub struct GalleryPhotoEdit {
     pub sort_order: Option<f64>,
     pub copyright: Option<String>,
     pub uploaded_at: Option<String>,
+    pub exif_display: Option<Vec<ExifDisplayRow>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -167,6 +178,14 @@ pub struct DraftUploadRow {
     pub dest_filename: String,
     pub edit_existing_id: Option<String>,
     pub preserve_uploaded_at: Option<String>,
+    #[serde(default)]
+    pub preserve_exif_display: Option<Vec<ExifDisplayRow>>,
+    #[serde(default)]
+    pub edit_gallery_image_path: Option<String>,
+    #[serde(default)]
+    pub edit_original_filename: Option<String>,
+    #[serde(default)]
+    pub replace_image_file: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1029,6 +1048,155 @@ fn read_image_hints(path: String) -> Result<ImageHints, String> {
     })
 }
 
+fn rational_to_f64(r: &exif::Rational) -> f64 {
+    if r.denom == 0 {
+        return 0.0;
+    }
+    r.num as f64 / r.denom as f64
+}
+
+fn srational_to_f64(r: &exif::SRational) -> f64 {
+    if r.denom == 0 {
+        return 0.0;
+    }
+    r.num as f64 / r.denom as f64
+}
+
+fn exif_ascii_value(exif: &exif::Exif, tag: Tag) -> Option<String> {
+    let field = exif.get_field(tag, In::PRIMARY)?;
+    match &field.value {
+        exif::Value::Ascii(parts) => {
+            let s: String = parts
+                .iter()
+                .flat_map(|p| p.iter().copied())
+                .map(|b| b as char)
+                .collect();
+            let s = s.trim().trim_end_matches('\0').trim().to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        }
+        _ => {
+            let s = field.display_value().to_string();
+            let s = s.trim().to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        }
+    }
+}
+
+fn exif_number_value(exif: &exif::Exif, tag: Tag) -> Option<f64> {
+    let field = exif.get_field(tag, In::PRIMARY)?;
+    match &field.value {
+        exif::Value::Short(v) => v.first().map(|n| f64::from(*n)),
+        exif::Value::Long(v) => v.first().map(|n| f64::from(*n)),
+        exif::Value::SShort(v) => v.first().map(|n| f64::from(*n)),
+        exif::Value::SLong(v) => v.first().map(|n| f64::from(*n)),
+        exif::Value::Rational(v) => v.first().map(rational_to_f64),
+        exif::Value::SRational(v) => v.first().map(srational_to_f64),
+        _ => field
+            .display_value()
+            .to_string()
+            .trim()
+            .parse::<f64>()
+            .ok(),
+    }
+}
+
+fn push_exif_ascii(map: &mut serde_json::Map<String, serde_json::Value>, exif: &exif::Exif, tag: Tag, key: &str) {
+    if let Some(s) = exif_ascii_value(exif, tag) {
+        map.insert(key.to_string(), serde_json::Value::String(s));
+    }
+}
+
+fn push_exif_number(map: &mut serde_json::Map<String, serde_json::Value>, exif: &exif::Exif, tag: Tag, key: &str) {
+    if let Some(n) = exif_number_value(exif, tag) {
+        if n.is_finite() {
+            map.insert(
+                key.to_string(),
+                serde_json::Number::from_f64(n)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or_else(|| serde_json::Value::String(n.to_string())),
+            );
+        }
+    }
+}
+
+/// Raw EXIF map for `@galleree/exif-display` (same keys as exifr / generate-assets).
+#[tauri::command]
+fn read_exif_publish_raw(path: String) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let p = PathBuf::from(&path);
+    if !p.is_file() {
+        return Err("not a file".into());
+    }
+
+    let file = std::fs::File::open(&p).map_err(|e| e.to_string())?;
+    let exif = match ExifReader::new().read_from_container(&mut BufReader::new(file)) {
+        Ok(e) => e,
+        Err(_) => return Ok(serde_json::Map::new()),
+    };
+
+    let mut map = serde_json::Map::new();
+    push_exif_ascii(&mut map, &exif, Tag::Make, "Make");
+    push_exif_ascii(&mut map, &exif, Tag::Model, "Model");
+    push_exif_ascii(&mut map, &exif, Tag::LensMake, "LensMake");
+    push_exif_ascii(&mut map, &exif, Tag::LensModel, "LensModel");
+    push_exif_number(&mut map, &exif, Tag::FocalLength, "FocalLength");
+    push_exif_number(
+        &mut map,
+        &exif,
+        Tag::FocalLengthIn35mmFilm,
+        "FocalLengthIn35mmFormat",
+    );
+    push_exif_number(&mut map, &exif, Tag::FNumber, "FNumber");
+    push_exif_number(&mut map, &exif, Tag::ExposureTime, "ExposureTime");
+    push_exif_number(&mut map, &exif, Tag::PhotographicSensitivity, "ISO");
+    push_exif_number(&mut map, &exif, Tag::ExposureProgram, "ExposureProgram");
+    push_exif_number(&mut map, &exif, Tag::MeteringMode, "MeteringMode");
+    push_exif_number(&mut map, &exif, Tag::Flash, "Flash");
+    push_exif_number(&mut map, &exif, Tag::WhiteBalance, "WhiteBalance");
+    push_exif_number(&mut map, &exif, Tag::Orientation, "Orientation");
+    push_exif_ascii(&mut map, &exif, Tag::DateTimeOriginal, "DateTimeOriginal");
+    push_exif_ascii(&mut map, &exif, Tag::DateTime, "CreateDate");
+    push_exif_ascii(&mut map, &exif, Tag::DateTimeDigitized, "ModifyDate");
+    push_exif_number(&mut map, &exif, Tag::ImageWidth, "ImageWidth");
+    push_exif_number(&mut map, &exif, Tag::ImageLength, "ImageHeight");
+    push_exif_number(&mut map, &exif, Tag::PixelXDimension, "ExifImageWidth");
+    push_exif_number(&mut map, &exif, Tag::PixelYDimension, "ExifImageHeight");
+    push_exif_number(&mut map, &exif, Tag::ColorSpace, "ColorSpace");
+    push_exif_ascii(&mut map, &exif, Tag::Software, "Software");
+    push_exif_ascii(&mut map, &exif, Tag::Artist, "Artist");
+    push_exif_ascii(&mut map, &exif, Tag::Copyright, "Copyright");
+    push_exif_ascii(&mut map, &exif, Tag::ImageDescription, "Description");
+    Ok(map)
+}
+
+fn parse_exif_display_sidecar(v: &serde_json::Value) -> Option<Vec<ExifDisplayRow>> {
+    let arr = v.as_array()?;
+    let mut rows = Vec::new();
+    for item in arr {
+        let label = item.get("label")?.as_str()?.trim();
+        let value = item.get("value")?.as_str()?.trim();
+        if label.is_empty() || value.is_empty() {
+            continue;
+        }
+        rows.push(ExifDisplayRow {
+            label: label.to_string(),
+            value: value.to_string(),
+        });
+    }
+    if rows.is_empty() {
+        None
+    } else {
+        Some(rows)
+    }
+}
+
 #[tauri::command]
 fn gallery_dest_exists(app: tauri::AppHandle, dest_filename: String) -> Result<bool, String> {
     if dest_filename.contains('/') || dest_filename.contains('\\') || dest_filename.contains("..") {
@@ -1627,6 +1795,7 @@ fn get_gallery_photo_for_edit(app: tauri::AppHandle, id: String) -> Result<Galle
             .and_then(|x| x.as_str())
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty()),
+        exif_display: v.get("exifDisplay").and_then(parse_exif_display_sidecar),
     })
 }
 
@@ -1798,6 +1967,17 @@ fn stage_gallery_files_blocking(
             }
         } else {
             copy_or_shrink_for_git(&src, &dest, &it.dest_filename)?;
+            if let Some(old_name) = it.remove_dest_filename.as_ref() {
+                validate_dest_filename(old_name)?;
+                if old_name != &it.dest_filename {
+                    let old_path = gallery_dir.join(old_name);
+                    if old_path.is_file() {
+                        std::fs::remove_file(&old_path).map_err(|e| {
+                            format!("remove old gallery file {}: {e}", old_name)
+                        })?;
+                    }
+                }
+            }
         }
 
         if let Some(json) = it.meta_json.as_ref() {
@@ -2069,6 +2249,7 @@ pub fn run() {
             has_pat,
             clear_pat,
             read_image_hints,
+            read_exif_publish_raw,
             gallery_dest_exists,
             ensure_repo_ready,
             list_gallery_registries,

@@ -24,7 +24,8 @@ import {
   fetchGalleryTags,
   setCollectionCoverPhoto,
 } from "./registryService"
-import { applyImageHints } from "./lib/applyImageHints"
+import { applyImageHints, type ImageHints } from "./lib/applyImageHints"
+import { resolveExifDisplayForRow } from "./lib/exifDisplayAtUpload"
 import { uploadRowFromGalleryEdit } from "./lib/galleryEditRow"
 import { normalizeKnownTags, parseTagList } from "./lib/tagSuggest"
 import { BatchEditBar, type BatchEditPatch, type CopyFromFirstField } from "./components/BatchEditBar"
@@ -177,6 +178,10 @@ function newRowFromPath(path: string, copyrightDefault = ""): UploadRow {
     destExists: false,
     editExistingId: null,
     preserveUploadedAt: null,
+    preserveExifDisplay: null,
+    editGalleryImagePath: null,
+    editOriginalFilename: null,
+    replaceImageFile: false,
   }
 }
 
@@ -935,6 +940,51 @@ export default function App() {
     setRows((list) => list.map((x) => (x.id === id ? { ...x, ...patch } : x)))
   }
 
+  const replaceImageForRow = async (rowId: string) => {
+    const row = rowsRef.current.find((r) => r.id === rowId)
+    if (!row?.editExistingId) return
+    const paths = await appOpenFiles()
+    if (paths.length === 0) return
+    const path = paths[0]
+    if (!isAllowedImagePath(path)) {
+      setStatus("That file type is not supported.")
+      return
+    }
+    const ext = normalizeExtensionFromPath(path)
+    updateRow(rowId, {
+      sourcePath: path,
+      previewSrc: appConvertFileSrc(path),
+      extension: ext,
+      destFilename: `${row.editExistingId}${ext}`,
+      replaceImageFile: true,
+    })
+    try {
+      const hints = await appInvoke<ImageHints>("read_image_hints", { path })
+      setRows((list) =>
+        list.map((r) => {
+          if (r.id !== rowId) return r
+          const next = { ...r }
+          applyImageHints(next, hints, registries)
+          return next
+        }),
+      )
+    } catch {
+      /* optional EXIF hints */
+    }
+  }
+
+  const revertEditImage = (rowId: string) => {
+    const row = rowsRef.current.find((r) => r.id === rowId)
+    if (!row?.editGalleryImagePath) return
+    updateRow(rowId, {
+      sourcePath: row.editGalleryImagePath,
+      previewSrc: appConvertFileSrc(row.editGalleryImagePath),
+      extension: normalizeExtensionFromPath(row.editGalleryImagePath),
+      destFilename: row.editOriginalFilename ?? row.destFilename,
+      replaceImageFile: false,
+    })
+  }
+
   const handleRegistryCreated = useCallback(
     (slug: string) => {
       const req = registryModal
@@ -957,8 +1007,7 @@ export default function App() {
     allTitlesOk &&
     rows.length > 0 &&
     !busy &&
-    !repoPreparing &&
-    !rows.some((r) => r.destExists && !r.editExistingId)
+    !repoPreparing
 
   const confirmRiskyPublish = (mode: PublishMode): boolean => {
     if (mode === "force_push") {
@@ -1073,19 +1122,13 @@ export default function App() {
     try {
       trace(`Filenames: ${rows.length} photo(s) queued.`)
       const ready = await enrichRowsWithDest(rows)
-      if (ready.some((r) => r.destExists && !r.editExistingId)) {
-        const clash = ready
-          .filter((r) => r.destExists && !r.editExistingId)
-          .map((r) => r.destFilename)
-        trace(`Conflict check: these names already exist in the repo: ${clash.join(", ")}`)
-        setRows(ready)
-        setStatus(
-          "A planned gallery file id already exists in the repo. Remove that photo from the list or use Edit existing… to update it.",
-        )
-        setErrorDetail(lines.join("\n"))
-        return
-      }
       setRows(ready)
+      const overwrites = ready.filter((r) => r.destExists && !r.editExistingId)
+      if (overwrites.length > 0) {
+        trace(
+          `Will replace ${overwrites.length} existing gallery file(s): ${overwrites.map((r) => r.destFilename).join(", ")}`,
+        )
+      }
       trace(`Planned files:\n${ready.map((r) => `${r.destFilename}  <=  ${r.sourcePath}`).join("\n")}`)
 
       const coverMissingId = ready.find(
@@ -1097,21 +1140,34 @@ export default function App() {
         )
       }
 
-      setStatus("Copying photos into the gallery…")
-      await appInvoke("stage_gallery_files", {
-        items: ready.map((r) => ({
+      setStatus("Preparing metadata…")
+      const items = await mapPool(ready, EXIF_READ_CONCURRENCY, async (r) => {
+        const exifDisplay = await resolveExifDisplayForRow(r)
+        const metaJson = serializeGalleryMeta(
+          galleryMetaFromUploadFields(
+            rowFieldsFromRow(r),
+            r.destId,
+            r.editExistingId ? r.preserveUploadedAt ?? undefined : undefined,
+            exifDisplay,
+          ),
+        )
+        const removeDestFilename =
+          r.replaceImageFile &&
+          r.editOriginalFilename &&
+          r.editOriginalFilename !== r.destFilename
+            ? r.editOriginalFilename
+            : undefined
+        return {
           sourcePath: r.sourcePath,
           destFilename: r.destFilename,
-          skipImageCopy: Boolean(r.editExistingId),
-          metaJson: serializeGalleryMeta(
-            galleryMetaFromUploadFields(
-              rowFieldsFromRow(r),
-              r.destId,
-              r.editExistingId ? r.preserveUploadedAt ?? undefined : undefined,
-            ),
-          ),
-        })),
+          skipImageCopy: Boolean(r.editExistingId && !r.replaceImageFile),
+          removeDestFilename,
+          metaJson,
+        }
       })
+
+      setStatus("Copying photos into the gallery…")
+      await appInvoke("stage_gallery_files", { items })
       trace("Copy into public/gallery completed (stage_gallery_files OK).")
 
       const coverBySlug = new Map<string, string>()
@@ -1397,6 +1453,8 @@ export default function App() {
                     getDestPreview={getDestPreview}
                     onOpenRegistryCreate={setRegistryModal}
                     panelRefs={panelRefs}
+                    onReplaceImage={(id) => void replaceImageForRow(id)}
+                    onRevertEditImage={revertEditImage}
                   />
                 ) : (
                   <PhotoPanels
@@ -1417,6 +1475,8 @@ export default function App() {
                     getDestPreview={getDestPreview}
                     onOpenRegistryCreate={setRegistryModal}
                     panelRefs={panelRefs}
+                    onReplaceImage={(id) => void replaceImageForRow(id)}
+                    onRevertEditImage={revertEditImage}
                   />
                 )}
               </>
