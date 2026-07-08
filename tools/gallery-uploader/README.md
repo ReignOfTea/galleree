@@ -2,6 +2,8 @@
 
 Tauri + React + TypeScript + Vite. Bulk-add photos to a git checkout of the site repo (`public/gallery/`), then commit and push.
 
+**Android tablet app:** [`gallery-uploader-android/`](../gallery-uploader-android/) — Flutter + Material You, same gallery workflow without a desktop. APK prereleases: `.github/workflows/gallery-uploader-android-release.yml`.
+
 On upload, the app writes each image, `meta/{id}.json`, and local `thumbs/{id}.jpg` (for preview). Git tracks **originals and meta only**—not `thumbs/` or `display/` (CI regenerates those on deploy). Before commit/push, publish runs `npm run generate-assets` in the gallery project so sidecars get `blurHash` and `exifDisplay` matching site CI (`check-gallery-assets`). **Node.js** and `npm install` in the project folder are required once for that step.
 
 Gallery folder layout, sidecar fields, and equipment registries are documented in the [repository README](../../README.md#gallery-layout).

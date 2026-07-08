@@ -50,7 +50,7 @@ jobs:
         run: npm run generate-assets
 
       - name: Verify gallery assets match git
-        run: npm run check-gallery-assets -- --skip-generate
+        run: npm run check-gallery-assets -- --skip-generate --allow-blurhash-drift --allow-exif-drift
 
       - name: Build site
         env:

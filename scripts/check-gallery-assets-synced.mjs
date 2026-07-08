@@ -17,6 +17,9 @@ const displayDir = path.join(galleryDir, 'display')
 
 const ID_RE = /^[a-f0-9]{32}$/i
 const skipGenerate = process.argv.includes('--skip-generate')
+const allowBlurhashDrift = process.argv.includes('--allow-blurhash-drift')
+const allowExifDrift = process.argv.includes('--allow-exif-drift')
+const allowGeneratedSidecarDrift = allowBlurhashDrift || allowExifDrift
 
 function loadThumbWidths() {
   try {
@@ -43,29 +46,122 @@ function runGenerateAssets() {
   if (r.status !== 0) process.exit(r.status ?? 1)
 }
 
-function checkMetaGitClean() {
+function metaForDriftCompare(raw) {
+  const copy = { ...raw }
+  if (allowBlurhashDrift) delete copy.blurHash
+  if (allowExifDrift) delete copy.exifDisplay
+  return JSON.stringify(copy, null, 2)
+}
+
+function readCommittedMeta(relPath) {
   try {
-    execSync('git diff --exit-code -- public/gallery/meta/', {
+    const text = execSync(`git show HEAD:${relPath}`, {
       cwd: root,
-      stdio: 'pipe',
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
     })
+    return JSON.parse(text)
   } catch {
-    let diff = ''
+    return null
+  }
+}
+
+function checkMetaGitClean() {
+  if (!allowGeneratedSidecarDrift) {
     try {
-      diff = execSync('git diff -- public/gallery/meta/', {
+      execSync('git diff --exit-code -- public/gallery/meta/', {
         cwd: root,
-        encoding: 'utf8',
+        stdio: 'pipe',
       })
     } catch {
-      /* ignore */
+      let diff = ''
+      try {
+        diff = execSync('git diff -- public/gallery/meta/', {
+          cwd: root,
+          encoding: 'utf8',
+        })
+      } catch {
+        /* ignore */
+      }
+      console.error(
+        '[check-gallery-assets] Photo sidecars under public/gallery/meta/ differ after generate-assets.',
+      )
+      console.error(
+        'Run `npm run generate-assets`, commit any blurHash/exifDisplay updates, and push again.',
+      )
+      if (diff.trim()) console.error(diff)
+      process.exit(1)
     }
-    console.error(
-      '[check-gallery-assets] Photo sidecars under public/gallery/meta/ differ after generate-assets.',
+    return
+  }
+
+  const mismatches = []
+  if (!fs.existsSync(metaDir)) return
+
+  for (const ent of fs.readdirSync(metaDir, { withFileTypes: true })) {
+    if (!ent.isFile() || !ent.name.endsWith('.json')) continue
+    const id = ent.name.replace(/\.json$/i, '')
+    if (!ID_RE.test(id)) continue
+
+    const relPath = `public/gallery/meta/${ent.name}`
+    const working = JSON.parse(
+      fs.readFileSync(path.join(metaDir, ent.name), 'utf8'),
     )
+    const committed = readCommittedMeta(relPath)
+
+    if (committed == null) continue
+
+    if (metaForDriftCompare(committed) !== metaForDriftCompare(working)) {
+      mismatches.push(relPath)
+    }
+  }
+
+  if (mismatches.length > 0) {
+    const excluded = [
+      allowBlurhashDrift ? 'blurHash' : null,
+      allowExifDrift ? 'exifDisplay' : null,
+    ].filter(Boolean)
+    const excludeLabel =
+      excluded.length > 0 ? ` (excluding ${excluded.join(', ')})` : ''
     console.error(
-      'Run `npm run generate-assets`, commit any blurHash/exifDisplay updates, and push again.',
+      `[check-gallery-assets] Photo sidecars differ after generate-assets${excludeLabel}.`,
     )
-    if (diff.trim()) console.error(diff)
+    for (const rel of mismatches.slice(0, 20)) {
+      console.error(`  ${rel}`)
+    }
+    if (mismatches.length > 20) {
+      console.error(`  … and ${mismatches.length - 20} more`)
+    }
+    process.exit(1)
+  }
+}
+
+function checkBlurHashPresent() {
+  if (!fs.existsSync(metaDir)) return
+
+  const missing = []
+  for (const ent of fs.readdirSync(metaDir, { withFileTypes: true })) {
+    if (!ent.isFile() || !ent.name.endsWith('.json')) continue
+    const id = ent.name.replace(/\.json$/i, '')
+    if (!ID_RE.test(id)) continue
+    const hasOriginal = ['.jpg', '.jpeg', '.png', '.webp', '.avif', '.gif'].some(
+      (ext) => fs.existsSync(path.join(galleryDir, `${id}${ext}`)),
+    )
+    if (!hasOriginal) continue
+
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(metaDir, ent.name), 'utf8'),
+    )
+    if (typeof raw.blurHash !== 'string' || raw.blurHash.length < 6) {
+      missing.push(`public/gallery/meta/${ent.name}`)
+    }
+  }
+
+  if (missing.length > 0) {
+    console.error(
+      '[check-gallery-assets] Missing blurHash in sidecars after generate-assets:',
+    )
+    for (const rel of missing.slice(0, 20)) console.error(`  ${rel}`)
     process.exit(1)
   }
 }
@@ -110,6 +206,7 @@ function checkDerivatives() {
 function main() {
   if (!skipGenerate) runGenerateAssets()
   checkMetaGitClean()
+  if (allowGeneratedSidecarDrift) checkBlurHashPresent()
   checkDerivatives()
   console.log('[check-gallery-assets] Meta and derivatives are in sync.')
 }

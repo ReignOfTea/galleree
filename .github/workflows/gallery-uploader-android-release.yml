@@ -1,0 +1,106 @@
+# GitHub Releases for the Galleree Upload Android app (Flutter APK).
+#
+# • Push to main/master (when paths below change): prerelease with tag
+#   gallery-uploader-android-v<version>-r<run_number> (version from pubspec.yaml).
+# • Push tag gallery-uploader-android-v*: stable release.
+#
+# Bump version in tools/gallery-uploader-android/pubspec.yaml (+ lib/app_version.dart)
+# for meaningful semver; run number keeps every main/master build unique.
+
+name: Gallery uploader Android — release
+
+on:
+  push:
+    branches: ['main', 'master']
+    tags: ['gallery-uploader-android-v*']
+    paths:
+      - 'tools/gallery-uploader-android/**'
+      - '.github/workflows/gallery-uploader-android-release.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gallery-uploader-android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.meta.outputs.tag_name }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      apk_asset_name: ${{ steps.meta.outputs.apk_asset_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/gallery-uploader-android-v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VER="${TAG#gallery-uploader-android-v}"
+            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "release_name=Galleree Upload (Android) v${VER}" >> "$GITHUB_OUTPUT"
+            echo "apk_asset_name=galleree-upload-android-v${VER}.apk" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            BASE=$(grep '^version:' tools/gallery-uploader-android/pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d+ -f1)
+            TAG="gallery-uploader-android-v${BASE}-r${GITHUB_RUN_NUMBER}"
+            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "release_name=Galleree Upload (Android) v${BASE} (build ${GITHUB_RUN_NUMBER})" >> "$GITHUB_OUTPUT"
+            echo "apk_asset_name=galleree-upload-android-v${BASE}-r${GITHUB_RUN_NUMBER}.apk" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: prepare
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/gallery-uploader-android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Stage release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "../../${{ needs.prepare.outputs.apk_asset_name }}"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
+          name: ${{ needs.prepare.outputs.release_name }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          body: |
+            Android APK for sideloading on a tablet or phone.
+
+            Signed with the CI debug keystore (suitable for personal use). Install via *Settings → Security → Install unknown apps* or `adb install`.
+          files: ${{ needs.prepare.outputs.apk_asset_name }}

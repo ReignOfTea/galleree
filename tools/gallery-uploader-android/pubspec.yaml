@@ -1,0 +1,33 @@
+name: gallery_uploader_android
+description: Tablet-first Android uploader for the Galleree photography site.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.6.1
+  dynamic_color: ^1.7.0
+  file_picker: ^8.1.7
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  crypto: ^3.0.6
+  http: ^1.2.2
+  archive: ^4.0.2
+  exif: ^3.3.0
+  image: ^4.5.2
+  uuid: ^4.5.1
+  intl: ^0.20.2
+  shared_preferences: ^2.3.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

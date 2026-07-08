@@ -108,10 +108,11 @@ async function writeAvif(src, dest, width) {
 
 async function writeBlurHashToMeta(metaPath, imagePath) {
   try {
+    const raw = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
+    if (!raw || typeof raw !== 'object') return false
     const hash = await blurHashFromImagePath(imagePath)
     if (!hash) return false
-    const raw = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
-    if (!raw || typeof raw !== 'object' || raw.blurHash === hash) return false
+    if (raw.blurHash === hash) return false
     raw.blurHash = hash
     fs.writeFileSync(metaPath, `${JSON.stringify(raw, null, 2)}\n`, 'utf8')
     return true
@@ -210,7 +211,7 @@ async function main() {
     ]
     const force = process.env.SKIP_THUMB_FORCE === '1'
 
-    if (!force && isUpToDate(allOutputs, stSrc.mtimeMs)) {
+      if (!force && isUpToDate(allOutputs, stSrc.mtimeMs)) {
       thumbsSkipped += 1
       if (await writeBlurHashToMeta(metaPath, thumbOutputs[1])) blurUpdated += 1
       if (await writeExifDisplayToMeta(metaPath, src)) exifUpdated += 1

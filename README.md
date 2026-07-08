@@ -152,6 +152,10 @@ Not in git (see `.gitignore` → `local-scripts/`). Keep your copy on each machi
 
 `tools/gallery-uploader/` is a Tauri app for bulk-adding images to a repo checkout, writing sidecars and 720px JPEG thumbs, editing existing metadata, updating `site.json`, and pushing via Git. See [tools/gallery-uploader/README.md](tools/gallery-uploader/README.md) for tokens and releases.
 
+## Android uploader
+
+`tools/gallery-uploader-android/` is a Flutter tablet app with the same gallery workflow. Pushes to `main`/`master` that touch that folder publish a prerelease APK via `.github/workflows/gallery-uploader-android-release.yml`. See [tools/gallery-uploader-android/README.md](tools/gallery-uploader-android/README.md).
+
 ## Deployment
 
 GitHub Actions workflow `.github/workflows/deploy-pages.yml` runs `npm run build` on pushes to `main`/`master` when gallery or site code changes. Enable **Pages → Source: GitHub Actions** in the repo settings.

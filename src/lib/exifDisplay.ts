@@ -64,7 +64,7 @@ function formatValue(key: string, v: unknown): string | null {
   }
   if (typeof v === 'boolean') return v ? 'Yes' : 'No'
   if (v instanceof Date) {
-    return v.toLocaleString(undefined, {
+    return v.toLocaleString('en-US', {
       dateStyle: 'medium',
       timeStyle: 'short',
     })
