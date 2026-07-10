@@ -88,20 +88,6 @@ class PhotoMasterList extends StatelessWidget {
                             row.collectionSelect,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
-                        if (row.isEdit)
-                          Text(
-                            'Edit existing',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                          )
-                        else if (row.destExists)
-                          Text(
-                            'Will replace existing',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.tertiary,
-                                ),
-                          ),
                       ],
                     ),
                   ),

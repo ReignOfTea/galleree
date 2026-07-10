@@ -1,7 +1,7 @@
 name: gallery_uploader_android
 description: Tablet-first Android uploader for the Galleree photography site.
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: ^3.9.2

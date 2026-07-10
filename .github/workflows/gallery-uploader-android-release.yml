@@ -4,8 +4,9 @@
 #   gallery-uploader-android-v<version>-r<run_number> (version from pubspec.yaml).
 # • Push tag gallery-uploader-android-v*: stable release.
 #
-# Bump version in tools/gallery-uploader-android/pubspec.yaml (+ lib/app_version.dart)
-# for meaningful semver; run number keeps every main/master build unique.
+# Bump version in tools/gallery-uploader-android/pubspec.yaml (+ lib/app_version.dart
+# + android-uploader-version.json) for meaningful semver; run number is the Android
+# versionCode on CI builds so every main/master APK is installable over the last.
 
 name: Gallery uploader Android — release
 
@@ -79,11 +80,24 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Sync Android version manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d+ -f1)
+          node -e "
+            const fs = require('fs');
+            const path = 'android-uploader-version.json';
+            const doc = JSON.parse(fs.readFileSync(path, 'utf8'));
+            doc.version = process.argv[1];
+            fs.writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
+          " "$BASE"
+
       - name: Run tests
         run: flutter test
 
       - name: Build release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --build-number="${{ github.run_number }}"
 
       - name: Stage release APK
         shell: bash
@@ -102,5 +116,7 @@ jobs:
           body: |
             Android APK for sideloading on a tablet or phone.
 
-            Signed with the CI debug keystore (suitable for personal use). Install via *Settings → Security → Install unknown apps* or `adb install`.
+            Signed with the project upload keystore (same key on every CI build). If an older APK was sideloaded with a different signature, uninstall it first, then install this APK.
+
+            Install via *Settings → Security → Install unknown apps* or `adb install -r`.
           files: ${{ needs.prepare.outputs.apk_asset_name }}

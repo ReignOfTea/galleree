@@ -53,6 +53,13 @@ Before publish, the app runs `npm run generate-assets` in the gallery workdir wh
 Workflow: `.github/workflows/gallery-uploader-android-release.yml`.
 
 - **Every push to `main` or `master`** that changes `tools/gallery-uploader-android/**` builds a release APK and publishes a **prerelease** (tag like `gallery-uploader-android-v1.0.0-r42`, using `version` from `pubspec.yaml` plus the workflow run number).
-- **Stable release:** push tag `gallery-uploader-android-v*` (e.g. `gallery-uploader-android-v1.0.0`). Bump `pubspec.yaml` and `lib/app_version.dart` together before tagging.
+- **Stable release:** push tag `gallery-uploader-android-v*` (e.g. `gallery-uploader-android-v1.0.2`). Bump together before tagging:
+  - `pubspec.yaml` (`version:` line, e.g. `1.0.2+3`)
+  - `lib/app_version.dart` (`kAppVersion`)
+  - `android-uploader-version.json` (`version` — used for in-app update notices)
 
-The APK is debug-signed in CI (fine for sideloading on your own devices). PRs and feature branches are built by `gallery-uploader-android-ci.yml` (artifact only, no release).
+The APK is signed with the committed upload keystore (`android/app/upload.keystore`, see `android/signing.properties`). CI uses the same key and sets `versionCode` from the GitHub Actions run number so each build installs over the previous one.
+
+**Updating:** if Android says *App not installed*, the device still has an APK signed with an old key (previous CI debug builds or a local debug build). Uninstall the old app, then install the new APK.
+
+Update notices read `tools/gallery-uploader-android/android-uploader-version.json` on your gallery branch — not the desktop `tools/gallery-uploader/uploader-version.json`.

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../app_version.dart';
 import '../models/models.dart';
+import '../utils/app_semver.dart';
 import 'app_storage.dart';
 
 class UpdateCheckResult {
@@ -22,8 +23,8 @@ class UpdateCheckResult {
   final bool updateAvailable;
 
   String get noticeMessage {
-    final url = downloadUrl ?? 'GitHub Releases';
-    return 'Update available: v$latestVersion (you have v$currentVersion). Download from $url.';
+    final url = downloadUrl ?? 'GitHub Releases (galleree-upload-android-*.apk)';
+    return 'Android update available: v$latestVersion (you have v$currentVersion). Download from $url.';
   }
 }
 
@@ -32,13 +33,16 @@ class UploaderUpdateService {
 
   final http.Client _client;
 
-  String rawUploaderVersionUrl(String repoUrl, String branch) {
+  String rawAndroidVersionUrl(String repoUrl, String branch) {
     final (owner, repo) = parseGitHubRepo(repoUrl);
-    return 'https://raw.githubusercontent.com/$owner/$repo/${branch.trim()}/tools/gallery-uploader/uploader-version.json';
+    return 'https://raw.githubusercontent.com/$owner/$repo/${branch.trim()}/tools/gallery-uploader-android/android-uploader-version.json';
   }
 
-  Future<UpdateCheckResult?> check(AppConfig config) async {
-    final url = rawUploaderVersionUrl(config.repoUrl, config.branch);
+  Future<UpdateCheckResult?> check(
+    AppConfig config, {
+    String currentVersion = kAppVersion,
+  }) async {
+    final url = rawAndroidVersionUrl(config.repoUrl, config.branch);
     final resp = await _client.get(Uri.parse(url)).timeout(const Duration(seconds: 12));
     if (resp.statusCode != 200) return null;
 
@@ -48,12 +52,12 @@ class UploaderUpdateService {
 
     final downloadUrl = value['downloadUrl'] as String?;
     final notes = value['notes'] as String?;
-    final updateAvailable = latest != kAppVersion;
+    final updateAvailable = isAppVersionOlder(currentVersion, latest);
 
     if (!updateAvailable) return null;
 
     return UpdateCheckResult(
-      currentVersion: kAppVersion,
+      currentVersion: currentVersion,
       latestVersion: latest,
       downloadUrl: downloadUrl,
       notes: notes,

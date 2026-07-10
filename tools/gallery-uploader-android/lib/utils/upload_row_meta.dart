@@ -53,6 +53,7 @@ DateTime? tryResolveCaptureDateTime(UploadRow row) {
 GalleryImageMeta galleryMetaFromUploadRow(
   UploadRow row, {
   String? uploadedAt,
+  String? contentHash,
   String? blurHash,
   List<Map<String, String>>? exifDisplay,
 }) {
@@ -70,7 +71,8 @@ GalleryImageMeta galleryMetaFromUploadRow(
     sortOrder: int.tryParse(row.sortOrder.trim()),
     copyright: row.copyright,
     id: row.destId,
-    uploadedAt: uploadedAt ?? row.preserveUploadedAt,
+    uploadedAt: uploadedAt,
+    contentHash: contentHash,
     blurHash: blurHash,
     exifDisplay: exifDisplay,
   );
@@ -134,7 +136,7 @@ String? validateUploadRowForPublish(UploadRow row) {
   final captureError = _validateCaptureFields(row, label);
   if (captureError != null) return captureError;
 
-  final meta = galleryMetaFromUploadRow(row, exifDisplay: row.preserveExifDisplay);
+  final meta = galleryMetaFromUploadRow(row);
   return _validateGalleryImageMeta(meta, label);
 }
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:exif/exif.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
@@ -35,6 +36,60 @@ List<String> loadGalleryTagsSync(GalleryPaths paths) {
   }
   return normalizeGalleryTags(raw);
 }
+
+/// Photo id/title pairs from synced sidecar JSON (no local originals required).
+List<({String id, String title})> loadGalleryPhotoTitlesSync(GalleryPaths paths) {
+  final dir = Directory(paths.metaDir);
+  if (!dir.existsSync()) return [];
+
+  final out = <({String id, String title})>[];
+  for (final file in dir.listSync().whereType<File>()) {
+    if (!file.path.endsWith('.json')) continue;
+    final id = p.basenameWithoutExtension(file.path);
+    if (!isValidGalleryImageId(id)) continue;
+    try {
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final title = json['title'] as String? ?? 'Untitled';
+      out.add((id: id, title: title));
+    } catch (_) {
+      /* skip */
+    }
+  }
+  out.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+  return out;
+}
+
+class GalleryContentHashHit {
+  const GalleryContentHashHit({required this.id, required this.title});
+
+  final String id;
+  final String title;
+}
+
+/// SHA-256 hex digests from synced sidecar JSON (metadata-only duplicate index).
+Map<String, GalleryContentHashHit> loadGalleryContentHashIndexSync(GalleryPaths paths) {
+  final dir = Directory(paths.metaDir);
+  if (!dir.existsSync()) return {};
+
+  final out = <String, GalleryContentHashHit>{};
+  for (final file in dir.listSync().whereType<File>()) {
+    if (!file.path.endsWith('.json')) continue;
+    final id = p.basenameWithoutExtension(file.path);
+    if (!isValidGalleryImageId(id)) continue;
+    try {
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final hash = json['contentHash'] as String?;
+      if (hash == null || !isValidContentHash(hash)) continue;
+      final title = json['title'] as String? ?? 'Untitled';
+      out[hash.toLowerCase()] = GalleryContentHashHit(id: id, title: title);
+    } catch (_) {
+      /* skip */
+    }
+  }
+  return out;
+}
+
+String sha256HexBytes(List<int> bytes) => sha256.convert(bytes).toString();
 
 GalleryRegistries loadGalleryRegistriesSync(String workdirRoot) {
   return GalleryRegistryService().load(GalleryPaths(workdirRoot));
@@ -347,36 +402,21 @@ class GalleryStageService {
     final destId = row.destId;
     final destName = row.destFilename;
     final destImage = File(p.join(paths.galleryDir, destName));
-    final skipImageCopy = row.editExistingId != null && !row.replaceImageFile;
 
-    if (!skipImageCopy) {
-      await File(row.sourcePath).copy(destImage.path);
-      if (row.editExistingId != null &&
-          row.editOriginalFilename != null &&
-          row.editOriginalFilename != destName) {
-        final oldPath = File(p.join(paths.galleryDir, row.editOriginalFilename!));
-        if (oldPath.existsSync()) await oldPath.delete();
-      }
-    }
+    await File(row.sourcePath).copy(destImage.path);
 
-    String? blurHash;
-    List<Map<String, String>>? exifDisplay;
-    if (skipImageCopy) {
-      blurHash = _readBlurHash(paths, destId);
-      exifDisplay = row.preserveExifDisplay;
-    } else {
-      final sourceBytes = await File(row.sourcePath).readAsBytes();
-      final destBytes = await destImage.readAsBytes();
-      exifDisplay = await buildExifDisplayForPublish(
-        sourceBytes,
-        fallbackBytes: destBytes,
-      );
-      blurHash = blurHashFromImageBytes(destBytes);
-    }
+    final sourceBytes = await File(row.sourcePath).readAsBytes();
+    final destBytes = await destImage.readAsBytes();
+    final contentHash = sha256HexBytes(destBytes);
+    final exifDisplay = await buildExifDisplayForPublish(
+      sourceBytes,
+      fallbackBytes: destBytes,
+    );
+    final blurHash = blurHashFromImageBytes(destBytes);
 
     final meta = galleryMetaFromUploadRow(
       row,
-      uploadedAt: row.preserveUploadedAt,
+      contentHash: contentHash,
       blurHash: blurHash,
       exifDisplay: exifDisplay,
     );
@@ -384,20 +424,7 @@ class GalleryStageService {
     final metaFile = File(p.join(paths.metaDir, '$destId.json'));
     await metaFile.writeAsString(meta.serialize());
 
-    if (!skipImageCopy) {
-      await _writeThumb(destImage.path, File(p.join(paths.thumbsDir, '$destId.jpg')));
-    }
-  }
-
-  String? _readBlurHash(GalleryPaths paths, String id) {
-    final metaFile = File(p.join(paths.metaDir, '$id.json'));
-    if (!metaFile.existsSync()) return null;
-    try {
-      final raw = jsonDecode(metaFile.readAsStringSync()) as Map<String, dynamic>;
-      return raw['blurHash'] as String?;
-    } catch (_) {
-      return null;
-    }
+    await _writeThumb(destImage.path, File(p.join(paths.thumbsDir, '$destId.jpg')));
   }
 
   Future<void> _writeThumb(String sourcePath, File thumbOut) async {
@@ -473,8 +500,10 @@ String randomGalleryFilename(String ext) {
   return '$id${dotExt == '.jpeg' ? '.jpg' : dotExt}';
 }
 
-bool destExistsForId(GalleryPaths paths, String filename) =>
-    File(p.join(paths.galleryDir, filename)).existsSync();
+bool destExistsForId(GalleryPaths paths, String filename) {
+  final id = p.basenameWithoutExtension(filename);
+  return File(p.join(paths.metaDir, '$id.json')).existsSync();
+}
 
 String? matchEquipmentSlug(String? make, String? model, List<RegistryEquipment> registry) {
   if (make == null && model == null) return null;

@@ -12,7 +12,6 @@ class PhotoDetailPane extends StatelessWidget {
     required this.knownTags,
     required this.onChanged,
     this.onBack,
-    this.onReplaceImage,
     this.onCreateRegistry,
   });
 
@@ -21,7 +20,6 @@ class PhotoDetailPane extends StatelessWidget {
   final List<String> knownTags;
   final ValueChanged<UploadRow> onChanged;
   final VoidCallback? onBack;
-  final VoidCallback? onReplaceImage;
   final void Function(RegistryKind kind)? onCreateRegistry;
 
   @override
@@ -45,23 +43,6 @@ class PhotoDetailPane extends StatelessWidget {
             child: LocalImagePreview(path: row.sourcePath, fit: BoxFit.contain),
           ),
         ),
-        if (row.isEdit) ...[
-          const SizedBox(height: 12),
-          Card(
-            color: Theme.of(context).colorScheme.secondaryContainer,
-            child: ListTile(
-              leading: const Icon(Icons.edit_note),
-              title: Text(row.replaceImageFile ? 'Replacing image file' : 'Editing existing gallery photo'),
-              subtitle: Text(row.destId),
-              trailing: row.replaceImageFile
-                  ? null
-                  : TextButton(
-                      onPressed: onReplaceImage,
-                      child: const Text('Replace image'),
-                    ),
-            ),
-          ),
-        ],
         const SizedBox(height: 20),
         _field(
           context,

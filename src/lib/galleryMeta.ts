@@ -44,6 +44,8 @@ export type GalleryImageMetaFile = {
   sortOrder: number | null
   copyright: string | null
   uploadedAt: string | null
+  /** SHA-256 hex of gallery original bytes — for duplicate detection without re-downloading images. */
+  contentHash: string | null
   blurHash: string | null
   /** Technical EXIF rows for lightbox (build-time only; sanitized). */
   exifDisplay: ExifDisplayRow[] | null
@@ -336,6 +338,7 @@ export function galleryMetaFromUploadFields(
   },
   id: string,
   uploadedAt?: string,
+  contentHash?: string | null,
 ): GalleryImageMetaFile {
   const title = fields.title.trim() || 'Untitled'
   let tags = fields.tags.map((t) => t.trim()).filter(Boolean)
@@ -372,6 +375,7 @@ export function galleryMetaFromUploadFields(
     sortOrder: fields.sortOrder,
     copyright: fields.copyright.trim() || null,
     uploadedAt: uploadedAt ?? nowIsoTimestamp(),
+    contentHash: contentHash?.trim().toLowerCase() || null,
     blurHash: null,
     exifDisplay: null,
   }
@@ -397,6 +401,7 @@ export function serializeGalleryMeta(meta: GalleryImageMetaFile): string {
   if (meta.sortOrder != null) out.sortOrder = meta.sortOrder
   if (meta.copyright) out.copyright = meta.copyright
   if (meta.uploadedAt) out.uploadedAt = meta.uploadedAt
+  if (meta.contentHash) out.contentHash = meta.contentHash
   if (meta.blurHash) out.blurHash = meta.blurHash
   if (meta.exifDisplay?.length) out.exifDisplay = meta.exifDisplay
   return `${JSON.stringify(out, null, 2)}\n`

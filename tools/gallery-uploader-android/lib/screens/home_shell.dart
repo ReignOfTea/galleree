@@ -8,7 +8,6 @@ import '../services/app_storage.dart';
 import 'settings_screen.dart';
 import '../widgets/batch_edit_bar.dart';
 import '../widgets/bulk_title_bar.dart';
-import '../widgets/gallery_pick_dialog.dart';
 import '../widgets/display_preview_dialog.dart';
 import '../widgets/onboarding_hint_card.dart';
 import '../widgets/photo_accordion_list.dart';
@@ -58,20 +57,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     if (result == null) return;
     final paths = result.paths.whereType<String>().toList();
     await ref.read(appControllerProvider.notifier).addPhotos(paths);
-  }
-
-  Future<void> _editGalleryPhoto() async {
-    final config = ref.read(appControllerProvider).config;
-    if (config == null) return;
-    final photos = ref.read(galleryEditServiceProvider).listPhotos(GalleryPaths(config.workdir));
-    if (!mounted) return;
-    if (photos.isEmpty) {
-      ref.read(appControllerProvider.notifier).setStatus('No photos in the gallery project to edit.');
-      return;
-    }
-    final picked = await showGalleryPickDialog(context, photos);
-    if (picked == null) return;
-    await ref.read(appControllerProvider.notifier).editGalleryPhoto(picked);
   }
 
   Future<void> _discardDraft() async {
@@ -161,7 +146,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       onToggleSelect: common.onToggleSelect,
       onRemove: common.onRemove,
       onChanged: (row) => notifier.updateRow(row.id, (_) => row),
-      onReplaceImage: notifier.replaceRowImage,
       onCreateRegistry: (kind) => _openRegistryDialog(
         RegistryModalRequest(kind: kind, rowId: state.selectedRow?.id),
       ),
@@ -175,7 +159,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       registries: state.registries,
       knownTags: state.knownTags,
       onChanged: (updated) => notifier.updateRow(updated.id, (_) => updated),
-      onReplaceImage: () => notifier.replaceRowImage(state.selectedRow!.id),
       onCreateRegistry: (kind) => _openRegistryDialog(
         RegistryModalRequest(kind: kind, rowId: state.selectedRow!.id),
       ),
@@ -264,7 +247,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                       knownTags: state.knownTags,
                       onChanged: (updated) => notifier.updateRow(updated.id, (_) => updated),
                       onBack: () => notifier.selectRow(null),
-                      onReplaceImage: () => notifier.replaceRowImage(state.selectedRow!.id),
                       onCreateRegistry: (kind) => _openRegistryDialog(
                         RegistryModalRequest(kind: kind, rowId: state.selectedRow!.id),
                       ),
@@ -385,15 +367,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                 switch (value) {
                   case 'folder':
                     await notifier.addFolder();
-                  case 'edit':
-                    await _editGalleryPhoto();
                   case 'discard':
                     await _discardDraft();
                 }
               },
               itemBuilder: (context) => const [
                 PopupMenuItem(value: 'folder', child: Text('Add folder…')),
-                PopupMenuItem(value: 'edit', child: Text('Edit gallery photo…')),
                 PopupMenuItem(value: 'discard', child: Text('Discard draft…')),
               ],
               icon: const Icon(Icons.more_vert),

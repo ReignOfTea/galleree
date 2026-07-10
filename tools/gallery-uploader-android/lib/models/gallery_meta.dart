@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 /// Gallery image sidecar — mirrors `src/lib/galleryMeta.ts`.
 const galleryMetaVersion = 1;
 final galleryImageIdPattern = RegExp(r'^[a-f0-9]{32}$', caseSensitive: false);
+final contentHashPattern = RegExp(r'^[a-f0-9]{64}$', caseSensitive: false);
 const allowedImageExt = {'.jpg', '.jpeg', '.png', '.webp', '.avif', '.gif'};
 final collectionSlugPattern = RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$');
 
@@ -26,6 +27,7 @@ class GalleryImageMeta {
     this.sortOrder,
     this.copyright,
     this.uploadedAt,
+    this.contentHash,
     this.blurHash,
     this.exifDisplay,
   });
@@ -46,6 +48,7 @@ class GalleryImageMeta {
   final int? sortOrder;
   final String? copyright;
   final String? uploadedAt;
+  final String? contentHash;
   final String? blurHash;
   final List<Map<String, String>>? exifDisplay;
 
@@ -68,6 +71,7 @@ class GalleryImageMeta {
     if (sortOrder != null) out['sortOrder'] = sortOrder;
     if (copyright != null) out['copyright'] = copyright;
     if (uploadedAt != null) out['uploadedAt'] = uploadedAt;
+    if (contentHash != null) out['contentHash'] = contentHash;
     if (blurHash != null) out['blurHash'] = blurHash;
     if (exifDisplay != null && exifDisplay!.isNotEmpty) {
       out['exifDisplay'] = exifDisplay;
@@ -81,6 +85,8 @@ class GalleryImageMeta {
 String generateGalleryImageId() => const Uuid().v4().replaceAll('-', '');
 
 bool isValidGalleryImageId(String id) => galleryImageIdPattern.hasMatch(id);
+
+bool isValidContentHash(String hash) => contentHashPattern.hasMatch(hash);
 
 bool isValidCollectionSlug(String slug) {
   final t = slug.trim().toLowerCase();
@@ -147,6 +153,7 @@ GalleryImageMeta galleryMetaFromUploadFields({
   required String copyright,
   required String id,
   String? uploadedAt,
+  String? contentHash,
   String? blurHash,
   List<Map<String, String>>? exifDisplay,
 }) {
@@ -175,6 +182,7 @@ GalleryImageMeta galleryMetaFromUploadFields({
     sortOrder: sortOrder,
     copyright: copyright.trim().isEmpty ? null : copyright.trim(),
     uploadedAt: uploadedAt ?? nowIsoTimestamp(),
+    contentHash: contentHash?.trim().toLowerCase(),
     blurHash: blurHash,
     exifDisplay: exifDisplay,
   );

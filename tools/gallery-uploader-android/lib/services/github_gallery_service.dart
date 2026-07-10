@@ -4,9 +4,9 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
+import '../models/gallery_meta.dart';
 import '../models/models.dart';
 import 'app_storage.dart';
-import 'github_gallery_io.dart';
 import 'operation_cancel.dart';
 
 export 'github_gallery_io.dart' show findGitHubArchiveRootPrefix;
@@ -142,7 +142,9 @@ class GitHubGalleryService {
     }
   }
 
-  /// Download only tracked `public/**` files via the Git Trees API (no full-repo tarball).
+  /// Download tracked metadata under `public/**` via the Git Trees API.
+  /// Gallery originals (`public/gallery/{id}.ext`) are skipped — only sidecars,
+  /// registries, equipment icons, and site config are synced locally.
   Future<void> _syncPublicFolder({
     required String pat,
     required AppConfig config,
@@ -228,7 +230,17 @@ class GitHubGalleryService {
     if (!path.startsWith('public/')) return false;
     if (path.contains('public/gallery/thumbs/')) return false;
     if (path.contains('public/gallery/display/')) return false;
+    if (_isGalleryOriginalPath(path)) return false;
     return true;
+  }
+
+  bool _isGalleryOriginalPath(String path) {
+    const prefix = 'public/gallery/';
+    if (!path.startsWith(prefix)) return false;
+    final relative = path.substring(prefix.length);
+    if (relative.contains('/')) return false;
+    final id = p.basenameWithoutExtension(relative);
+    return isValidGalleryImageId(id);
   }
 
   Future<void> _addFileToTree({
@@ -302,9 +314,5 @@ class GitHubGalleryService {
     if (resp.statusCode >= 400) {
       throw StateError('GitHub API ${resp.statusCode}: ${resp.body}');
     }
-  }
-
-  Future<Set<String>> galleryContentHashes(GalleryPaths paths) async {
-    return computeGalleryImageHashesAsync(paths.galleryDir);
   }
 }

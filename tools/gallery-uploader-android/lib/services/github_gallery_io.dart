@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
-import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 class ExtractTarballRequest {
@@ -55,47 +54,6 @@ void extractGitHubTarballToWorkdir(ExtractTarballRequest request) {
     Directory(p.dirname(outPath)).createSync(recursive: true);
     File(outPath).writeAsBytesSync(Uint8List.fromList(file.content as List<int>));
   }
-}
-
-/// SHA-256 hashes of gallery originals for dedup (sync; tests and small folders).
-Set<String> computeGalleryImageHashes(String galleryDir) {
-  final hashes = <String>{};
-  final gallery = Directory(galleryDir);
-  if (!gallery.existsSync()) return hashes;
-  for (final entity in gallery.listSync()) {
-    if (entity is! File) continue;
-    final name = p.basename(entity.path);
-    if (!RegExp(r'^[a-f0-9]{32}\.[a-z]+$').hasMatch(name)) continue;
-    hashes.add(sha256.convert(entity.readAsBytesSync()).toString());
-  }
-  return hashes;
-}
-
-final _galleryImagePattern = RegExp(r'^[a-f0-9]{32}\.[a-z]+$');
-
-/// Pause long enough for the Windows runner to drain its message queue.
-const _windowsYield = Duration(milliseconds: 16);
-
-/// Yields to the UI thread between files so Windows stays responsive.
-Future<Set<String>> computeGalleryImageHashesAsync(String galleryDir) async {
-  final hashes = <String>{};
-  final gallery = Directory(galleryDir);
-  if (!gallery.existsSync()) return hashes;
-
-  final files = gallery
-      .listSync()
-      .whereType<File>()
-      .where((file) => _galleryImagePattern.hasMatch(p.basename(file.path)))
-      .toList();
-
-  for (var i = 0; i < files.length; i++) {
-    final bytes = await files[i].readAsBytes();
-    hashes.add(sha256.convert(bytes).toString());
-    if (i % 8 == 7) {
-      await Future<void>.delayed(_windowsYield);
-    }
-  }
-  return hashes;
 }
 
 /// GitHub repo tarballs are gzip-compressed; entries look like

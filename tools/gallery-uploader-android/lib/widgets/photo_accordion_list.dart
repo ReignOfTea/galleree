@@ -16,7 +16,6 @@ class PhotoAccordionList extends StatelessWidget {
     required this.onToggleSelect,
     required this.onRemove,
     required this.onChanged,
-    this.onReplaceImage,
     this.onCreateRegistry,
   });
 
@@ -29,7 +28,6 @@ class PhotoAccordionList extends StatelessWidget {
   final ValueChanged<String> onToggleSelect;
   final ValueChanged<String> onRemove;
   final void Function(UploadRow row) onChanged;
-  final void Function(String rowId)? onReplaceImage;
   final void Function(RegistryKind kind)? onCreateRegistry;
 
   @override
@@ -73,11 +71,7 @@ class PhotoAccordionList extends StatelessWidget {
             ),
             title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text(
-              [
-                if (row.collectionSelect.isNotEmpty) row.collectionSelect,
-                if (row.isEdit) 'Edit existing',
-                if (row.destExists && !row.isEdit) 'Will replace',
-              ].join(' · '),
+              row.collectionSelect.isNotEmpty ? row.collectionSelect : '',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -92,8 +86,6 @@ class PhotoAccordionList extends StatelessWidget {
                 registries: registries,
                 knownTags: knownTags,
                 onChanged: onChanged,
-                onReplaceImage:
-                    onReplaceImage == null ? null : () => onReplaceImage!(row.id),
                 onCreateRegistry: onCreateRegistry,
               ),
             ],

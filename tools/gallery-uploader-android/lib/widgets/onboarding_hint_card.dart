@@ -86,7 +86,7 @@ class UploadEmptyState extends StatelessWidget {
               Text('No photos in the queue', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
-                'Add photos from your device, or edit an existing gallery photo after syncing from GitHub.',
+                'Add photos from your device, then fill in metadata and publish to GitHub.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
               ),

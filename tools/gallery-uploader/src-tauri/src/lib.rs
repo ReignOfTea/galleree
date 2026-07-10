@@ -2158,13 +2158,24 @@ fn stage_gallery_files_blocking(
                     it.dest_filename
                 ));
             }
+            let content_hash = sha256_hex_file(&dest)?;
+            let mut value: serde_json::Value =
+                serde_json::from_str(json).map_err(|e| format!("invalid meta JSON: {e}"))?;
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert(
+                    "contentHash".to_string(),
+                    serde_json::Value::String(content_hash),
+                );
+            }
             let meta_dir = gallery_dir.join("meta");
             std::fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
             let meta_path = meta_dir.join(format!("{stem}.json"));
-            let body = if json.ends_with('\n') {
-                json.clone()
+            let serialized = serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialize meta/{stem}.json: {e}"))?;
+            let body = if serialized.ends_with('\n') {
+                serialized
             } else {
-                format!("{json}\n")
+                format!("{serialized}\n")
             };
             std::fs::write(&meta_path, body.as_bytes())
                 .map_err(|e| format!("write meta/{stem}.json: {e}"))?;

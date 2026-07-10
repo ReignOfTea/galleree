@@ -22,12 +22,7 @@ class UploadRow {
     this.destId = '',
     this.destFilename = '',
     this.destExists = false,
-    this.editExistingId,
-    this.preserveUploadedAt,
-    this.preserveExifDisplay,
-    this.editGalleryImagePath,
-    this.editOriginalFilename,
-    this.replaceImageFile = false,
+    this.contentHash,
   });
 
   final String id;
@@ -52,14 +47,7 @@ class UploadRow {
   String destId;
   String destFilename;
   bool destExists;
-  final String? editExistingId;
-  final String? preserveUploadedAt;
-  final List<Map<String, String>>? preserveExifDisplay;
-  final String? editGalleryImagePath;
-  final String? editOriginalFilename;
-  bool replaceImageFile;
-
-  bool get isEdit => editExistingId != null;
+  final String? contentHash;
 
   UploadRow copyWith({
     String? sourcePath,
@@ -83,12 +71,7 @@ class UploadRow {
     String? destId,
     String? destFilename,
     bool? destExists,
-    String? editExistingId,
-    String? preserveUploadedAt,
-    List<Map<String, String>>? preserveExifDisplay,
-    String? editGalleryImagePath,
-    String? editOriginalFilename,
-    bool? replaceImageFile,
+    String? contentHash,
   }) {
     return UploadRow(
       id: id,
@@ -113,12 +96,7 @@ class UploadRow {
       destId: destId ?? this.destId,
       destFilename: destFilename ?? this.destFilename,
       destExists: destExists ?? this.destExists,
-      editExistingId: editExistingId ?? this.editExistingId,
-      preserveUploadedAt: preserveUploadedAt ?? this.preserveUploadedAt,
-      preserveExifDisplay: preserveExifDisplay ?? this.preserveExifDisplay,
-      editGalleryImagePath: editGalleryImagePath ?? this.editGalleryImagePath,
-      editOriginalFilename: editOriginalFilename ?? this.editOriginalFilename,
-      replaceImageFile: replaceImageFile ?? this.replaceImageFile,
+      contentHash: contentHash ?? this.contentHash,
     );
   }
 }
@@ -274,20 +252,6 @@ class RegistryModalRequest {
   final RegistryKind kind;
   final String? editSlug;
   final String? rowId;
-}
-
-class GalleryPhotoSummary {
-  const GalleryPhotoSummary({
-    required this.id,
-    required this.title,
-    required this.imagePath,
-    required this.destFilename,
-  });
-
-  final String id;
-  final String title;
-  final String imagePath;
-  final String destFilename;
 }
 
 class SiteConfigDraft {

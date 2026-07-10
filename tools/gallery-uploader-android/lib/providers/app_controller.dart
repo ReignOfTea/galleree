@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +17,6 @@ import '../utils/upload_row_meta.dart';
 import '../services/app_storage.dart';
 import '../services/display_preview_service.dart';
 import '../services/draft_session_service.dart';
-import '../services/gallery_edit_service.dart';
 import '../services/gallery_services.dart';
 import '../services/generate_assets_service.dart';
 import '../services/github_gallery_service.dart';
@@ -35,7 +33,6 @@ final exifServiceProvider = Provider<ExifService>((ref) => ExifService());
 final generateAssetsServiceProvider =
     Provider<GenerateAssetsService>((ref) => GenerateAssetsService());
 final draftSessionServiceProvider = Provider<DraftSessionService>((ref) => DraftSessionService());
-final galleryEditServiceProvider = Provider<GalleryEditService>((ref) => GalleryEditService());
 final siteConfigServiceProvider = Provider<SiteConfigService>((ref) => SiteConfigService());
 final displayPreviewServiceProvider = Provider<DisplayPreviewService>((ref) => DisplayPreviewService());
 final uploaderUpdateServiceProvider = Provider<UploaderUpdateService>((ref) => UploaderUpdateService());
@@ -54,8 +51,8 @@ class AppState {
     this.busy = false,
     this.status,
     this.progress,
-    this.galleryHashes = const {},
     this.galleryTags = const [],
+    this.galleryContentHashIndex = const {},
     SiteConfigDraft? siteConfigDraft,
     this.extraStagedPaths = const {},
     this.queueViewMode = QueueViewMode.compact,
@@ -78,8 +75,8 @@ class AppState {
   final bool busy;
   final String? status;
   final String? progress;
-  final Set<String> galleryHashes;
   final List<String> galleryTags;
+  final Map<String, GalleryContentHashHit> galleryContentHashIndex;
   final SiteConfigDraft siteConfigDraft;
   final Set<String> extraStagedPaths;
   final QueueViewMode queueViewMode;
@@ -100,8 +97,8 @@ class AppState {
     bool? busy,
     String? status,
     String? progress,
-    Set<String>? galleryHashes,
     List<String>? galleryTags,
+    Map<String, GalleryContentHashHit>? galleryContentHashIndex,
     SiteConfigDraft? siteConfigDraft,
     Set<String>? extraStagedPaths,
     QueueViewMode? queueViewMode,
@@ -124,8 +121,8 @@ class AppState {
       busy: busy ?? this.busy,
       status: clearStatus ? null : (status ?? this.status),
       progress: clearProgress ? null : (progress ?? this.progress),
-      galleryHashes: galleryHashes ?? this.galleryHashes,
       galleryTags: galleryTags ?? this.galleryTags,
+      galleryContentHashIndex: galleryContentHashIndex ?? this.galleryContentHashIndex,
       siteConfigDraft: siteConfigDraft ?? this.siteConfigDraft,
       extraStagedPaths: extraStagedPaths ?? this.extraStagedPaths,
       queueViewMode: queueViewMode ?? this.queueViewMode,
@@ -161,7 +158,6 @@ class AppController extends StateNotifier<AppState> {
 
   final Ref _ref;
   Future<void>? _refreshInFlight;
-  Future<void>? _hashIndexInFlight;
   Timer? _draftTimer;
   OperationCancelToken? _cancelToken;
 
@@ -172,7 +168,6 @@ class AppController extends StateNotifier<AppState> {
   ExifService get _exif => _ref.read(exifServiceProvider);
   GenerateAssetsService get _generateAssets => _ref.read(generateAssetsServiceProvider);
   DraftSessionService get _drafts => _ref.read(draftSessionServiceProvider);
-  GalleryEditService get _edit => _ref.read(galleryEditServiceProvider);
   SiteConfigService get _siteConfig => _ref.read(siteConfigServiceProvider);
   UploaderUpdateService get _updates => _ref.read(uploaderUpdateServiceProvider);
 
@@ -265,47 +260,27 @@ class AppController extends StateNotifier<AppState> {
     await Future<void>.delayed(const Duration(milliseconds: 16));
 
     final paths = GalleryPaths(config.workdir);
-    if (!Directory(paths.galleryDir).existsSync()) {
+    if (!Directory(paths.metaDir).existsSync()) {
       state = state.copyWith(
-        status: 'Gallery not on this device yet. Tap the cloud icon to sync from GitHub.',
+        status: 'Gallery metadata not on this device yet. Tap the cloud icon to sync from GitHub.',
       );
       return;
     }
 
     try {
-      final paths = GalleryPaths(config.workdir);
       final registries = loadGalleryRegistriesSync(config.workdir);
       final galleryTags = loadGalleryTagsSync(paths);
-      state = state.copyWith(registries: registries, galleryTags: galleryTags);
+      final hashIndex = loadGalleryContentHashIndexSync(paths);
+      state = state.copyWith(
+        registries: registries,
+        galleryTags: galleryTags,
+        galleryContentHashIndex: hashIndex,
+      );
       _loadSiteConfigDraft(config);
       await _tryRestoreDraft(config);
       unawaited(_checkForUpdate(config));
     } catch (e) {
       state = state.copyWith(status: '$e');
-    }
-
-    if (!Platform.isWindows) {
-      unawaited(_indexHashesInBackground(config.workdir));
-    }
-  }
-
-  Future<void> _indexHashesInBackground(String workdir) async {
-    if (_hashIndexInFlight != null) return _hashIndexInFlight;
-    _hashIndexInFlight = _indexHashesInBackgroundImpl(workdir);
-    try {
-      await _hashIndexInFlight;
-    } finally {
-      _hashIndexInFlight = null;
-    }
-  }
-
-  Future<void> _indexHashesInBackgroundImpl(String workdir) async {
-    await Future<void>.delayed(const Duration(seconds: 2));
-    try {
-      final hashes = await _github.galleryContentHashes(GalleryPaths(workdir));
-      state = state.copyWith(galleryHashes: hashes);
-    } catch (_) {
-      // Dedup index is optional; ignore background failures.
     }
   }
 
@@ -414,12 +389,12 @@ class AppController extends StateNotifier<AppState> {
     _setProgress('Loading registries…', onProgress: onProgress);
     final registries = loadGalleryRegistriesSync(config.workdir);
     final galleryTags = loadGalleryTagsSync(paths);
-    state = state.copyWith(registries: registries, galleryTags: galleryTags);
-    _setProgress('Indexing photos…', onProgress: onProgress);
-    if (!Platform.isWindows) {
-      final hashes = await _github.galleryContentHashes(paths);
-      state = state.copyWith(galleryHashes: hashes);
-    }
+    final hashIndex = loadGalleryContentHashIndexSync(paths);
+    state = state.copyWith(
+      registries: registries,
+      galleryTags: galleryTags,
+      galleryContentHashIndex: hashIndex,
+    );
   }
 
   Future<void> syncGallery() async {
@@ -489,14 +464,21 @@ class AppController extends StateNotifier<AppState> {
     final defaults = state.sessionDefaults;
     final newRows = <UploadRow>[];
     final batchHashes = <String>{};
+    var skippedDuplicates = 0;
 
     try {
       for (final path in paths) {
         final file = File(path);
         if (!file.existsSync()) continue;
+
         final bytes = await file.readAsBytes();
-        final digest = sha256.convert(bytes).toString();
-        if (state.galleryHashes.contains(digest) || batchHashes.contains(digest)) continue;
+        final digest = sha256HexBytes(bytes);
+        if (state.galleryContentHashIndex.containsKey(digest) ||
+            batchHashes.contains(digest) ||
+            state.rows.any((r) => r.contentHash == digest)) {
+          skippedDuplicates++;
+          continue;
+        }
         batchHashes.add(digest);
 
         final hints = await _exif.readHints(path);
@@ -536,6 +518,7 @@ class AppController extends StateNotifier<AppState> {
           destFilename: destFilename,
           destId: destId,
           destExists: destExistsForId(GalleryPaths(config.workdir), destFilename),
+          contentHash: digest,
         ));
       }
     } catch (e) {
@@ -544,15 +527,23 @@ class AppController extends StateNotifier<AppState> {
     }
 
     if (newRows.isEmpty) {
-      state = state.copyWith(status: 'No new photos added (duplicates skipped).');
+      state = state.copyWith(
+        status: skippedDuplicates > 0
+            ? 'No new photos added (duplicates skipped).'
+            : 'No new photos added.',
+      );
       return;
     }
 
     final rows = [...state.rows, ...newRows];
+    var status = 'Added ${newRows.length} photo${newRows.length == 1 ? '' : 's'}.';
+    if (skippedDuplicates > 0) {
+      status += ' Skipped $skippedDuplicates duplicate${skippedDuplicates == 1 ? '' : 's'}.';
+    }
     state = state.copyWith(
       rows: rows,
       selectedRowId: newRows.first.id,
-      status: 'Added ${newRows.length} photo${newRows.length == 1 ? '' : 's'}.',
+      status: status,
     );
     _scheduleDraftSave();
   }
@@ -569,49 +560,6 @@ class AppController extends StateNotifier<AppState> {
       }
     }
     await addPhotos(paths);
-  }
-
-  Future<void> editGalleryPhoto(GalleryPhotoSummary photo) async {
-    final config = state.config;
-    if (config == null) return;
-    final paths = GalleryPaths(config.workdir);
-    if (state.rows.any((r) => r.editExistingId == photo.id)) {
-      state = state.copyWith(status: 'That photo is already in the queue.');
-      return;
-    }
-    final row = _edit.loadPhotoForEdit(
-      paths: paths,
-      photo: photo,
-      registries: state.registries,
-    );
-    if (row == null) {
-      state = state.copyWith(status: 'Could not load photo metadata.');
-      return;
-    }
-    state = state.copyWith(
-      rows: [...state.rows, row],
-      selectedRowId: row.id,
-      status: 'Loaded “${row.title}” for editing.',
-    );
-    _scheduleDraftSave();
-  }
-
-  Future<void> replaceRowImage(String rowId) async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.image);
-    final path = result?.files.single.path;
-    if (path == null) return;
-    final bytes = await File(path).readAsBytes();
-    final ext = extensionFromPathAndBytes(path, bytes);
-    updateRow(rowId, (row) {
-      final destFilename = '${row.destId}${ext == '.jpeg' ? '.jpg' : ext}';
-      return row.copyWith(
-        sourcePath: path,
-        extension: ext,
-        destFilename: destFilename,
-        replaceImageFile: true,
-      );
-    });
-    _scheduleDraftSave();
   }
 
   void toggleRowSelected(String id) {
@@ -709,9 +657,8 @@ class AppController extends StateNotifier<AppState> {
         .map((r) => (id: r.destId, label: r.title.trim()));
     final config = state.config;
     if (config == null) return fromQueue.toList();
-    final fromGallery = _edit
-        .listPhotos(GalleryPaths(config.workdir))
-        .map((p) => (id: p.id, label: p.title));
+    final fromGallery =
+        loadGalleryPhotoTitlesSync(GalleryPaths(config.workdir)).map((p) => (id: p.id, label: p.title));
     return [...fromQueue, ...fromGallery];
   }
 

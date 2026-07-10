@@ -141,24 +141,10 @@ class DraftSessionService {
         'destId': row.destId,
         'destFilename': row.destFilename,
         'destExists': row.destExists,
-        'editExistingId': row.editExistingId,
-        'preserveUploadedAt': row.preserveUploadedAt,
-        'preserveExifDisplay': row.preserveExifDisplay,
-        'editGalleryImagePath': row.editGalleryImagePath,
-        'editOriginalFilename': row.editOriginalFilename,
-        'replaceImageFile': row.replaceImageFile,
+        'contentHash': row.contentHash,
       };
 
   UploadRow _rowFromDraft(Map<String, dynamic> map) {
-    List<Map<String, String>>? exif;
-    final rawExif = map['preserveExifDisplay'];
-    if (rawExif is List) {
-      exif = rawExif
-          .whereType<Map>()
-          .map((e) => e.map((k, v) => MapEntry(k.toString(), v.toString())))
-          .toList();
-    }
-
     return UploadRow(
       id: map['id'] as String? ?? '',
       sourcePath: map['sourcePath'] as String? ?? '',
@@ -182,12 +168,7 @@ class DraftSessionService {
       destId: map['destId'] as String? ?? '',
       destFilename: map['destFilename'] as String? ?? '',
       destExists: map['destExists'] as bool? ?? false,
-      editExistingId: map['editExistingId'] as String?,
-      preserveUploadedAt: map['preserveUploadedAt'] as String?,
-      preserveExifDisplay: exif,
-      editGalleryImagePath: map['editGalleryImagePath'] as String?,
-      editOriginalFilename: map['editOriginalFilename'] as String?,
-      replaceImageFile: map['replaceImageFile'] as bool? ?? false,
+      contentHash: map['contentHash'] as String?,
     );
   }
 
