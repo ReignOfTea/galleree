@@ -56,7 +56,7 @@ class AppState {
     SiteConfigDraft? siteConfigDraft,
     this.extraStagedPaths = const {},
     this.queueViewMode = QueueViewMode.compact,
-    this.updateNotice,
+    this.pendingUpdate,
     this.operationCancelable = false,
   })  : registries = registries ??
             GalleryRegistries(collections: [], cameras: [], lenses: []),
@@ -80,7 +80,7 @@ class AppState {
   final SiteConfigDraft siteConfigDraft;
   final Set<String> extraStagedPaths;
   final QueueViewMode queueViewMode;
-  final String? updateNotice;
+  final UpdateCheckResult? pendingUpdate;
   final bool operationCancelable;
 
   AppState copyWith({
@@ -102,8 +102,8 @@ class AppState {
     SiteConfigDraft? siteConfigDraft,
     Set<String>? extraStagedPaths,
     QueueViewMode? queueViewMode,
-    String? updateNotice,
-    bool clearUpdateNotice = false,
+    UpdateCheckResult? pendingUpdate,
+    bool clearPendingUpdate = false,
     bool? operationCancelable,
     bool clearStatus = false,
     bool clearProgress = false,
@@ -126,7 +126,7 @@ class AppState {
       siteConfigDraft: siteConfigDraft ?? this.siteConfigDraft,
       extraStagedPaths: extraStagedPaths ?? this.extraStagedPaths,
       queueViewMode: queueViewMode ?? this.queueViewMode,
-      updateNotice: clearUpdateNotice ? null : (updateNotice ?? this.updateNotice),
+      pendingUpdate: clearPendingUpdate ? null : (pendingUpdate ?? this.pendingUpdate),
       operationCancelable: operationCancelable ?? this.operationCancelable,
     );
   }
@@ -442,13 +442,35 @@ class AppController extends StateNotifier<AppState> {
     try {
       final result = await _updates.check(config);
       if (result == null) return;
-      state = state.copyWith(updateNotice: result.noticeMessage);
+      state = state.copyWith(pendingUpdate: result);
     } catch (_) {
       /* offline or non-GitHub repo */
     }
   }
 
-  void dismissUpdateNotice() => state = state.copyWith(clearUpdateNotice: true);
+  void dismissUpdateNotice() => state = state.copyWith(clearPendingUpdate: true);
+
+  Future<void> installAppUpdate() async {
+    final update = state.pendingUpdate;
+    final config = state.config;
+    if (update == null || config == null) return;
+
+    _beginCancelableOperation('Preparing update…');
+    try {
+      await _updates.downloadAndInstall(
+        repoUrl: config.repoUrl,
+        update: update,
+        onProgress: _setProgress,
+      );
+      _endCancelableOperation(
+        status: 'Follow the system prompt to install v${update.latestVersion}.',
+      );
+    } on OperationCanceledException {
+      _endCancelableOperation(status: 'Update canceled.');
+    } catch (e) {
+      _endCancelableOperation(status: '$e');
+    }
+  }
 
   void setQueueViewMode(QueueViewMode mode) {
     state = state.copyWith(queueViewMode: mode);

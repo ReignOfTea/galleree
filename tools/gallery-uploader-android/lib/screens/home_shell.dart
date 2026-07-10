@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -174,11 +176,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }) {
     return Column(
       children: [
-        if (state.updateNotice != null)
+        if (state.pendingUpdate != null)
           MaterialBanner(
-            content: Text(state.updateNotice!),
+            content: Text(state.pendingUpdate!.bannerMessage),
+            leading: const Icon(Icons.system_update_alt),
             actions: [
-              TextButton(onPressed: notifier.dismissUpdateNotice, child: const Text('Dismiss')),
+              if (Platform.isAndroid)
+                FilledButton(
+                  onPressed: state.busy ? null : notifier.installAppUpdate,
+                  child: const Text('Install update'),
+                ),
+              TextButton(onPressed: notifier.dismissUpdateNotice, child: const Text('Later')),
             ],
           ),
         if (_showUploadHint && state.rows.isEmpty)

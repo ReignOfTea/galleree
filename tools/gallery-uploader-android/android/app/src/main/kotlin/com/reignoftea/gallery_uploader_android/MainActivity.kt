@@ -7,5 +7,6 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         SecurePatStorage.register(flutterEngine, this)
+        ApkInstaller.register(flutterEngine, this)
     }
 }

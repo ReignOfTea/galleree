@@ -31,7 +31,7 @@ void main() {
 
     expect(result?.updateAvailable, isTrue);
     expect(result?.latestVersion, '1.0.2');
-    expect(result?.noticeMessage, contains('Android update available'));
+    expect(result?.bannerMessage, contains('Update available'));
   });
 
   test('check returns null when current version is up to date', () async {
@@ -46,5 +46,28 @@ void main() {
     );
 
     expect(result, isNull);
+  });
+
+  test('resolveLatestApkAssetUrl finds galleree-upload-android asset', () async {
+    final client = MockClient((request) async {
+      expect(request.url.path, '/repos/ReignOfTea/galleree/releases');
+      return http.Response(
+        jsonEncode([
+          {
+            'assets': [
+              {
+                'name': 'galleree-upload-android-v1.0.2-r99.apk',
+                'browser_download_url': 'https://example.test/app.apk',
+              },
+            ],
+          },
+        ]),
+        200,
+      );
+    });
+
+    final service = UploaderUpdateService(client: client);
+    final url = await service.resolveLatestApkAssetUrl('https://github.com/ReignOfTea/galleree');
+    expect(url, 'https://example.test/app.apk');
   });
 }
