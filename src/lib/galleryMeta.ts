@@ -201,6 +201,12 @@ function normalizeSortOrder(raw: unknown): number | null {
   return null
 }
 
+function normalizeContentHash(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const t = raw.trim().toLowerCase()
+  return /^[a-f0-9]{64}$/.test(t) ? t : null
+}
+
 function normalizeBoolean(raw: unknown, defaultValue: boolean): boolean {
   if (typeof raw === 'boolean') return raw
   if (raw === 'true' || raw === 1) return true
@@ -273,6 +279,7 @@ export function parseGalleryMetaFile(
     sortOrder: normalizeSortOrder(raw.sortOrder),
     copyright: nullableString(raw.copyright),
     uploadedAt: normalizeIsoDateTime(raw.uploadedAt),
+    contentHash: normalizeContentHash(raw.contentHash),
     blurHash: nullableString(raw.blurHash),
     exifDisplay: normalizeExifDisplay(raw.exifDisplay),
   }
