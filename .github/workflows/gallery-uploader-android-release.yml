@@ -1,130 +1,136 @@
-# GitHub Releases for the Galleree Upload Android app (Flutter APK).
-#
-# • Push to main/master (when paths below change): prerelease with tag
-#   gallery-uploader-android-v<version>-r<run_number> (version from pubspec.yaml).
-# • Push tag gallery-uploader-android-v*: stable release.
-#
-# Publishes per-ABI APKs (arm64-v8a, armeabi-v7a, x86_64). The in-app updater picks
-# the split matching the device; older universal APKs on past releases still work.
-#
-# Bump version in tools/gallery-uploader-android/pubspec.yaml (+ lib/app_version.dart
-# + android-uploader-version.json) for meaningful semver; run number is the Android
-# versionCode on CI builds so every main/master APK is installable over the last.
-
-name: Gallery uploader Android — release
-
-on:
-  push:
-    branches: ['main', 'master']
-    tags: ['gallery-uploader-android-v*']
-    paths:
-      - 'tools/gallery-uploader-android/**'
-      - '.github/workflows/gallery-uploader-android-release.yml'
-      - '.github/actions/setup-galleree-android/**'
-
-permissions:
-  contents: write
-
-concurrency:
-  group: gallery-uploader-android-release-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  FLUTTER_APP: tools/gallery-uploader-android
-  GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true
-  ORG_GRADLE_PROJECT_kotlin.incremental: true
-
-jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      tag_name: ${{ steps.meta.outputs.tag_name }}
-      release_name: ${{ steps.meta.outputs.release_name }}
-      prerelease: ${{ steps.meta.outputs.prerelease }}
-      apk_asset_prefix: ${{ steps.meta.outputs.apk_asset_prefix }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Compute release metadata
-        id: meta
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_REF}" == refs/tags/gallery-uploader-android-v* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-            VER="${TAG#gallery-uploader-android-v}"
-            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "release_name=Galleree Upload (Android) v${VER}" >> "$GITHUB_OUTPUT"
-            echo "apk_asset_prefix=galleree-upload-android-v${VER}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          else
-            BASE=$(grep '^version:' tools/gallery-uploader-android/pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d+ -f1)
-            TAG="gallery-uploader-android-v${BASE}-r${GITHUB_RUN_NUMBER}"
-            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "release_name=Galleree Upload (Android) v${BASE} (build ${GITHUB_RUN_NUMBER})" >> "$GITHUB_OUTPUT"
-            echo "apk_asset_prefix=galleree-upload-android-v${BASE}-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          fi
-
-  publish:
-    needs: prepare
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: tools/gallery-uploader-android
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Flutter and Gradle caches
-        uses: ./.github/actions/setup-galleree-android
-
-      - name: Sync Android version manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d+ -f1)
-          node -e "
-            const fs = require('fs');
-            const path = 'android-uploader-version.json';
-            const doc = JSON.parse(fs.readFileSync(path, 'utf8'));
-            doc.version = process.argv[1];
-            fs.writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
-          " "$BASE"
-
-      # Unit tests run on PR/branch CI (gallery-uploader-android-ci.yml).
-      - name: Build release APKs (split per ABI)
-        run: flutter build apk --release --split-per-abi --build-number="${{ github.run_number }}"
-
-      - name: Stage release APKs
-        shell: bash
-        run: |
-          set -euo pipefail
-          PREFIX="${{ needs.prepare.outputs.apk_asset_prefix }}"
-          OUT=../../
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
-            "${OUT}${PREFIX}-arm64-v8a.apk"
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
-            "${OUT}${PREFIX}-armeabi-v7a.apk"
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk \
-            "${OUT}${PREFIX}-x86_64.apk"
-
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ needs.prepare.outputs.tag_name }}
-          name: ${{ needs.prepare.outputs.release_name }}
-          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
-          generate_release_notes: true
-          body: |
-            Android APKs for sideloading on a tablet or phone.
-
-            **Downloads:** pick the split for your device — most phones and tablets use **arm64-v8a**. The in-app updater chooses automatically.
-
-            Signed with the project upload keystore (same key on every CI build). If an older APK was sideloaded with a different signature, uninstall it first, then install this APK.
-
-            Install via *Settings → Security → Install unknown apps* or `adb install -r`.
-          files: |
-            ${{ needs.prepare.outputs.apk_asset_prefix }}-arm64-v8a.apk
-            ${{ needs.prepare.outputs.apk_asset_prefix }}-armeabi-v7a.apk
-            ${{ needs.prepare.outputs.apk_asset_prefix }}-x86_64.apk
+# GitHub Releases for the Galleree Upload Android app (Flutter APK).
+#
+# • Push to main/master (when paths below change): prerelease with tag
+#   gallery-uploader-android-v<version>-r<run_number> (version from pubspec.yaml).
+# • Push tag gallery-uploader-android-v*: stable release.
+#
+# Publishes per-ABI APKs (arm64-v8a, armeabi-v7a, x86_64). The in-app updater picks
+# the split matching the device; older universal APKs on past releases still work.
+#
+# Bump version in tools/gallery-uploader-android/pubspec.yaml (+ lib/app_version.dart
+# + android-uploader-version.json) for meaningful semver; run number is the Android
+# versionCode on CI builds so every main/master APK is installable over the last.
+
+name: Gallery uploader Android — release
+
+on:
+  push:
+    branches: ['main', 'master']
+    tags: ['gallery-uploader-android-v*']
+    paths:
+      - 'tools/gallery-uploader-android/**'
+      - '.github/workflows/gallery-uploader-android-release.yml'
+      - '.github/actions/setup-galleree-android/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gallery-uploader-android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_APP: tools/gallery-uploader-android
+  GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true
+  ORG_GRADLE_PROJECT_kotlin.incremental: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.meta.outputs.tag_name }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/gallery-uploader-android-v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VER="${TAG#gallery-uploader-android-v}"
+            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "release_name=Galleree Upload (Android) v${VER}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            BASE=$(grep '^version:' tools/gallery-uploader-android/pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d+ -f1)
+            TAG="gallery-uploader-android-v${BASE}-r${GITHUB_RUN_NUMBER}"
+            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "release_name=Galleree Upload (Android) v${BASE} (build ${GITHUB_RUN_NUMBER})" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: prepare
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/gallery-uploader-android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter and Gradle caches
+        uses: ./.github/actions/setup-galleree-android
+
+      - name: Sync Android version manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d+ -f1)
+          node -e "
+            const fs = require('fs');
+            const path = 'android-uploader-version.json';
+            const doc = JSON.parse(fs.readFileSync(path, 'utf8'));
+            doc.version = process.argv[1];
+            fs.writeFileSync(path, JSON.stringify(doc, null, 2) + '\n');
+          " "$BASE"
+
+      # Unit tests run on PR/branch CI (gallery-uploader-android-ci.yml).
+      - name: Build release APKs (split per ABI)
+        run: flutter build apk --release --split-per-abi --build-number="${{ github.run_number }}"
+
+      - name: Stage release APKs
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d+ -f1)
+          if [[ "${GITHUB_REF}" == refs/tags/gallery-uploader-android-v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VER="${TAG#gallery-uploader-android-v}"
+            PREFIX="galleree-upload-android-v${VER}"
+          else
+            PREFIX="galleree-upload-android-v${BASE}-r${GITHUB_RUN_NUMBER}"
+          fi
+          DEST="${GITHUB_WORKSPACE}"
+          cp -- build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            "${DEST}/${PREFIX}-arm64-v8a.apk"
+          cp -- build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+            "${DEST}/${PREFIX}-armeabi-v7a.apk"
+          cp -- build/app/outputs/flutter-apk/app-x86_64-release.apk \
+            "${DEST}/${PREFIX}-x86_64.apk"
+          echo "apk_asset_prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
+          name: ${{ needs.prepare.outputs.release_name }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          body: |
+            Android APKs for sideloading on a tablet or phone.
+
+            **Downloads:** pick the split for your device — most phones and tablets use **arm64-v8a**. The in-app updater chooses automatically.
+
+            Signed with the project upload keystore (same key on every CI build). If an older APK was sideloaded with a different signature, uninstall it first, then install this APK.
+
+            Install via *Settings → Security → Install unknown apps* or `adb install -r`.
+          files: |
+            ${{ steps.stage.outputs.apk_asset_prefix }}-arm64-v8a.apk
+            ${{ steps.stage.outputs.apk_asset_prefix }}-armeabi-v7a.apk
+            ${{ steps.stage.outputs.apk_asset_prefix }}-x86_64.apk
