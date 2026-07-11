@@ -260,6 +260,8 @@ class AppController extends StateNotifier<AppState> {
     await Future<void>.delayed(const Duration(milliseconds: 16));
 
     final paths = GalleryPaths(config.workdir);
+    _loadSiteConfigDraft(config);
+
     if (!Directory(paths.metaDir).existsSync()) {
       state = state.copyWith(
         status: 'Gallery metadata not on this device yet. Tap the cloud icon to sync from GitHub.',
@@ -276,7 +278,6 @@ class AppController extends StateNotifier<AppState> {
         galleryTags: galleryTags,
         galleryContentHashIndex: hashIndex,
       );
-      _loadSiteConfigDraft(config);
       await _tryRestoreDraft(config);
       unawaited(_checkForUpdate(config));
     } catch (e) {
@@ -320,6 +321,7 @@ class AppController extends StateNotifier<AppState> {
       state = state.copyWith(config: config, hasPat: true);
 
       if (sameRemote) {
+        _loadSiteConfigDraft(config);
         _clearProgress();
         state = state.copyWith(
           busy: false,
@@ -395,6 +397,7 @@ class AppController extends StateNotifier<AppState> {
       galleryTags: galleryTags,
       galleryContentHashIndex: hashIndex,
     );
+    _loadSiteConfigDraft(config);
   }
 
   Future<void> syncGallery() async {

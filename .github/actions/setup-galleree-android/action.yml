@@ -1,0 +1,33 @@
+name: Setup Galleree Android (Flutter)
+description: Java, pinned Flutter SDK, pub cache, and Gradle dependency cache.
+
+inputs:
+  working-directory:
+    description: Flutter project directory
+    required: false
+    default: tools/gallery-uploader-android
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+        cache: gradle
+        cache-dependency-path: |
+          ${{ inputs.working-directory }}/android/**/*.gradle*
+          ${{ inputs.working-directory }}/android/**/gradle-wrapper.properties
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        flutter-version-file: ${{ inputs.working-directory }}/.flutter-version
+        cache: true
+
+    - name: Install Dart dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: flutter pub get

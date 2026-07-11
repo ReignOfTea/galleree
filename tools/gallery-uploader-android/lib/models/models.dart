@@ -275,6 +275,31 @@ class SiteConfigDraft {
   final String contactEmail;
   final String copyright;
 
+  @override
+  bool operator ==(Object other) {
+    return other is SiteConfigDraft &&
+        other.title == title &&
+        other.kicker == kicker &&
+        other.tagline == tagline &&
+        other.about == about &&
+        other.siteUrl == siteUrl &&
+        other.lang == lang &&
+        other.contactEmail == contactEmail &&
+        other.copyright == copyright;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        title,
+        kicker,
+        tagline,
+        about,
+        siteUrl,
+        lang,
+        contactEmail,
+        copyright,
+      );
+
   SiteConfigDraft copyWith({
     String? title,
     String? kicker,

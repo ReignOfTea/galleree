@@ -1,6 +1,7 @@
 package com.reignoftea.gallery_uploader_android
 
 import android.content.Intent
+import android.os.Build
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -14,6 +15,9 @@ object ApkInstaller {
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "preferredAbis" -> {
+                        result.success(Build.SUPPORTED_ABIS.toList())
+                    }
                     "install" -> {
                         val path = call.argument<String>("path")
                         if (path.isNullOrBlank()) {

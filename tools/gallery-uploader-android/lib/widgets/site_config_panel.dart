@@ -23,9 +23,81 @@ class SiteConfigPanel extends StatefulWidget {
 }
 
 class _SiteConfigPanelState extends State<SiteConfigPanel> {
+  late final TextEditingController _title;
+  late final TextEditingController _kicker;
+  late final TextEditingController _tagline;
+  late final TextEditingController _about;
+  late final TextEditingController _siteUrl;
+  late final TextEditingController _lang;
+  late final TextEditingController _contactEmail;
+  late final TextEditingController _copyright;
+
+  @override
+  void initState() {
+    super.initState();
+    _title = TextEditingController(text: widget.draft.title);
+    _kicker = TextEditingController(text: widget.draft.kicker);
+    _tagline = TextEditingController(text: widget.draft.tagline);
+    _about = TextEditingController(text: widget.draft.about);
+    _siteUrl = TextEditingController(text: widget.draft.siteUrl);
+    _lang = TextEditingController(text: widget.draft.lang);
+    _contactEmail = TextEditingController(text: widget.draft.contactEmail);
+    _copyright = TextEditingController(text: widget.draft.copyright);
+  }
+
+  @override
+  void didUpdateWidget(SiteConfigPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.draft == widget.draft) return;
+    _syncController(_title, widget.draft.title);
+    _syncController(_kicker, widget.draft.kicker);
+    _syncController(_tagline, widget.draft.tagline);
+    _syncController(_about, widget.draft.about);
+    _syncController(_siteUrl, widget.draft.siteUrl);
+    _syncController(_lang, widget.draft.lang);
+    _syncController(_contactEmail, widget.draft.contactEmail);
+    _syncController(_copyright, widget.draft.copyright);
+  }
+
+  void _syncController(TextEditingController controller, String value) {
+    if (controller.text == value) return;
+    controller.value = controller.value.copyWith(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+      composing: TextRange.empty,
+    );
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _kicker.dispose();
+    _tagline.dispose();
+    _about.dispose();
+    _siteUrl.dispose();
+    _lang.dispose();
+    _contactEmail.dispose();
+    _copyright.dispose();
+    super.dispose();
+  }
+
+  SiteConfigDraft _currentDraft() {
+    return SiteConfigDraft(
+      title: _title.text,
+      kicker: _kicker.text,
+      tagline: _tagline.text,
+      about: _about.text,
+      siteUrl: _siteUrl.text,
+      lang: _lang.text,
+      contactEmail: _contactEmail.text,
+      copyright: _copyright.text,
+    );
+  }
+
+  void _emitDraft() => widget.onChanged(_currentDraft());
+
   @override
   Widget build(BuildContext context) {
-    final d = widget.draft;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -38,14 +110,14 @@ class _SiteConfigPanelState extends State<SiteConfigPanel> {
               ),
         ),
         const SizedBox(height: 20),
-        _field('Site title', d.title, (v) => widget.onChanged(d.copyWith(title: v))),
-        _field('Kicker', d.kicker, (v) => widget.onChanged(d.copyWith(kicker: v))),
-        _field('Tagline', d.tagline, (v) => widget.onChanged(d.copyWith(tagline: v))),
-        _field('About', d.about, (v) => widget.onChanged(d.copyWith(about: v)), maxLines: 4),
-        _field('Site URL', d.siteUrl, (v) => widget.onChanged(d.copyWith(siteUrl: v))),
-        _field('Language (BCP 47)', d.lang, (v) => widget.onChanged(d.copyWith(lang: v))),
-        _field('Contact email', d.contactEmail, (v) => widget.onChanged(d.copyWith(contactEmail: v))),
-        _field('Footer copyright', d.copyright, (v) => widget.onChanged(d.copyWith(copyright: v))),
+        _field('Site title', _title),
+        _field('Kicker', _kicker),
+        _field('Tagline', _tagline),
+        _field('About', _about, maxLines: 4),
+        _field('Site URL', _siteUrl),
+        _field('Language (BCP 47)', _lang),
+        _field('Contact email', _contactEmail),
+        _field('Footer copyright', _copyright),
         const SizedBox(height: 16),
         Wrap(
           spacing: 12,
@@ -66,16 +138,14 @@ class _SiteConfigPanelState extends State<SiteConfigPanel> {
 
   Widget _field(
     String label,
-    String value,
-    ValueChanged<String> onChanged, {
+    TextEditingController controller, {
     int maxLines = 1,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
-        key: ValueKey('$label-$value'),
-        initialValue: value,
-        onChanged: onChanged,
+        controller: controller,
+        onChanged: (_) => _emitDraft(),
         maxLines: maxLines,
         decoration: InputDecoration(labelText: label),
       ),

@@ -56,6 +56,35 @@ void main() {
           {
             'assets': [
               {
+                'name': 'galleree-upload-android-v1.0.2-r99-arm64-v8a.apk',
+                'browser_download_url': 'https://example.test/arm64.apk',
+              },
+              {
+                'name': 'galleree-upload-android-v1.0.2-r99-armeabi-v7a.apk',
+                'browser_download_url': 'https://example.test/v7a.apk',
+              },
+            ],
+          },
+        ]),
+        200,
+      );
+    });
+
+    final service = UploaderUpdateService(client: client);
+    final url = await service.resolveLatestApkAssetUrl(
+      'https://github.com/ReignOfTea/galleree',
+      preferredAbis: ['arm64-v8a'],
+    );
+    expect(url, 'https://example.test/arm64.apk');
+  });
+
+  test('resolveLatestApkAssetUrl keeps legacy universal apk', () async {
+    final client = MockClient((request) async {
+      return http.Response(
+        jsonEncode([
+          {
+            'assets': [
+              {
                 'name': 'galleree-upload-android-v1.0.2-r99.apk',
                 'browser_download_url': 'https://example.test/app.apk',
               },

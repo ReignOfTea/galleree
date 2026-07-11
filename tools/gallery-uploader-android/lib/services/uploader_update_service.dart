@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../app_version.dart';
 import '../models/models.dart';
 import '../utils/app_semver.dart';
+import '../utils/apk_asset_selection.dart';
 import 'apk_installer.dart';
 import 'app_storage.dart';
 
@@ -83,6 +84,7 @@ class UploaderUpdateService {
     String repoUrl, {
     String? apkUrl,
     String? downloadUrl,
+    List<String>? preferredAbis,
   }) async {
     if (apkUrl != null && apkUrl.trim().isNotEmpty && apkUrl.endsWith('.apk')) {
       return apkUrl.trim();
@@ -90,10 +92,15 @@ class UploaderUpdateService {
     if (downloadUrl != null && downloadUrl.endsWith('.apk')) {
       return downloadUrl.trim();
     }
-    return resolveLatestApkAssetUrl(repoUrl);
+    final abis = preferredAbis ??
+        (Platform.isAndroid ? await ApkInstaller.preferredAbis() : const <String>[]);
+    return resolveLatestApkAssetUrl(repoUrl, preferredAbis: abis);
   }
 
-  Future<String?> resolveLatestApkAssetUrl(String repoUrl) async {
+  Future<String?> resolveLatestApkAssetUrl(
+    String repoUrl, {
+    List<String> preferredAbis = const [],
+  }) async {
     final (owner, repo) = parseGitHubRepo(repoUrl);
     final uri = Uri.parse('https://api.github.com/repos/$owner/$repo/releases?per_page=30');
     final resp = await _client.get(uri, headers: _githubHeaders).timeout(const Duration(seconds: 15));
@@ -102,12 +109,15 @@ class UploaderUpdateService {
     final releases = jsonDecode(resp.body) as List<dynamic>;
     for (final release in releases.whereType<Map<String, dynamic>>()) {
       final assets = release['assets'] as List<dynamic>? ?? const [];
+      final apkAssets = <ApkReleaseAsset>[];
       for (final asset in assets.whereType<Map<String, dynamic>>()) {
         final name = asset['name'] as String? ?? '';
-        if (!name.startsWith('galleree-upload-android-') || !name.endsWith('.apk')) continue;
         final url = asset['browser_download_url'] as String?;
-        if (url != null && url.isNotEmpty) return url;
+        if (url == null || url.isEmpty) continue;
+        apkAssets.add(ApkReleaseAsset(name: name, url: url));
       }
+      final picked = pickApkAssetUrl(apkAssets, preferredAbis: preferredAbis);
+      if (picked != null) return picked;
     }
     return null;
   }

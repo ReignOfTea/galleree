@@ -62,4 +62,4 @@ The APK is signed with the committed upload keystore (`android/app/upload.keysto
 
 **Updating:** if Android says *App not installed*, the device still has an APK signed with an old key (previous CI debug builds or a local debug build). Uninstall the old app, then install the new APK.
 
-Update notices read `tools/gallery-uploader-android/android-uploader-version.json` on your gallery branch — not the desktop `tools/gallery-uploader/uploader-version.json`. On Android, tap **Install update** in the banner to download the latest `galleree-upload-android-*.apk` from GitHub Releases and open the system installer.
+Update notices read `tools/gallery-uploader-android/android-uploader-version.json` on your gallery branch — not the desktop `tools/gallery-uploader/uploader-version.json`. On Android, tap **Install update** in the banner to download the correct per-ABI `galleree-upload-android-*-{abi}.apk` from GitHub Releases (arm64-v8a for most devices) and open the system installer.
