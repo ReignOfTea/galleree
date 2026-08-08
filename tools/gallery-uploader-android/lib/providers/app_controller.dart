@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/gallery_meta.dart';
 import '../models/models.dart';
+import '../app_version.dart';
 import '../utils/batch_edit.dart' as batch;
 import '../utils/bulk_title.dart';
 import '../utils/registry_slug.dart';
@@ -479,6 +480,32 @@ class AppController extends StateNotifier<AppState> {
       state = state.copyWith(pendingUpdate: result);
     } catch (_) {
       /* offline or non-GitHub repo */
+    }
+  }
+
+  /// Manual check from About; reports status when already up to date.
+  Future<void> checkForAppUpdate() async {
+    final config = state.config;
+    if (config == null) {
+      state = state.copyWith(status: 'Connect a gallery repo before checking for updates.');
+      return;
+    }
+    state = state.copyWith(status: 'Checking for app updates…');
+    try {
+      final result = await _updates.check(config);
+      if (result == null) {
+        state = state.copyWith(
+          clearPendingUpdate: true,
+          status: 'Galleree Upload $kAppVersion is up to date.',
+        );
+        return;
+      }
+      state = state.copyWith(
+        pendingUpdate: result,
+        status: result.bannerMessage,
+      );
+    } catch (e) {
+      state = state.copyWith(status: 'Update check failed: $e');
     }
   }
 

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_controller.dart';
 import '../models/models.dart';
 import '../services/app_storage.dart';
+import 'about_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/batch_edit_bar.dart';
 import '../widgets/bulk_title_bar.dart';
@@ -396,6 +397,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             tooltip: 'Sync gallery',
             onPressed: state.busy ? null : notifier.syncGallery,
             icon: const Icon(Icons.cloud_download_outlined),
+          ),
+          IconButton(
+            tooltip: 'About',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const AboutScreen()),
+            ),
+            icon: const Icon(Icons.info_outline),
           ),
           IconButton(
             tooltip: 'Git settings',
