@@ -17,4 +17,7 @@ export function setCollectionSlugInLocation(slug: string | null): void {
   })
 }
 
-export { collectionPageUrl } from './galleryUrlState'
+export {
+  collectionPageUrl,
+  collectionSharePageUrl,
+} from './galleryUrlState'

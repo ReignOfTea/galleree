@@ -24,7 +24,7 @@ import {
   type GallerySortOrder,
 } from './lib/gallerySort'
 import {
-  collectionPageUrl,
+  collectionSharePageUrl,
   setCollectionSlugInLocation,
 } from './lib/collectionDeepLink'
 import {
@@ -321,7 +321,9 @@ export default function App() {
 
   const copyCollectionLink = useCallback(async () => {
     if (!activeCollectionSlug) return
-    const url = collectionPageUrl(activeCollectionSlug)
+    const url = collectionSharePageUrl(activeCollectionSlug, {
+      siteUrl: site.siteUrl,
+    })
     try {
       await navigator.clipboard.writeText(url)
       setCollectionLinkCopied(true)
@@ -329,7 +331,7 @@ export default function App() {
     } catch {
       /* clipboard unavailable */
     }
-  }, [activeCollectionSlug])
+  }, [activeCollectionSlug, site.siteUrl])
 
   const showFilters = allLocations.length > 0 || availableTags.length > 0
 

@@ -24,7 +24,7 @@ import {
   type AmbientColors,
   type VisibleImageLayout,
 } from '../lib/lightboxAmbient'
-import { collectionPageUrl } from '../lib/collectionDeepLink'
+import { collectionSharePageUrl } from '../lib/collectionDeepLink'
 import { shareGalleryPageOnSocials } from '../lib/shareGalleryPhoto'
 import type { EquipmentOpenContext } from './EquipmentCaptionLink'
 import { useViewportAnchoredPopover } from '../lib/anchorPopover'
@@ -563,7 +563,7 @@ export function PhotoLightbox({
 
   const collectionLinkUrl = useMemo(() => {
     if (!collectionSlug || typeof window === 'undefined') return null
-    return collectionPageUrl(collectionSlug)
+    return collectionSharePageUrl(collectionSlug)
   }, [collectionSlug])
 
   const copyText = useCallback(async (text: string, successMessage: string) => {

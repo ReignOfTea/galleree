@@ -2,17 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { Plugin } from 'vite'
 import { parseGalleryCollectionMetaFile } from '../src/lib/galleryCollectionMeta'
-import { isValidGalleryImageId } from '../src/lib/galleryMeta'
 import { loadSiteForShare } from './galleryShareHtml'
+import { collectionCoverImageRel } from './galleryCollectionCover'
 import { renderGalleryCollectionPageHtml } from './galleryCollectionHtml'
-
-function coverImageRel(galleryDir: string, coverImageId: string | null): string | null {
-  if (!coverImageId || !isValidGalleryImageId(coverImageId)) return null
-  const thumb = `gallery/thumbs/${coverImageId}.jpg`
-  const thumbAbs = path.join(galleryDir, 'thumbs', `${coverImageId}.jpg`)
-  if (fs.existsSync(thumbAbs)) return thumb
-  return null
-}
 
 export type GalleryCollectionPagesPluginOptions = {
   base: string
@@ -68,7 +60,11 @@ export function galleryCollectionPagesPlugin(
             siteTitle: site.siteTitle,
             siteDescription: site.description,
             htmlLang: site.htmlLang,
-            coverImageRel: coverImageRel(galleryDir, doc.coverImageId),
+            coverImageRel: collectionCoverImageRel(
+              galleryDir,
+              doc.slug,
+              doc.coverImageId,
+            ),
           })
           res.statusCode = 200
           res.setHeader('Content-Type', 'text/html; charset=utf-8')
@@ -110,7 +106,11 @@ export function galleryCollectionPagesPlugin(
             siteTitle: site.siteTitle,
             siteDescription: site.description,
             htmlLang: site.htmlLang,
-            coverImageRel: coverImageRel(galleryDir, doc.coverImageId),
+            coverImageRel: collectionCoverImageRel(
+              galleryDir,
+              doc.slug,
+              doc.coverImageId,
+            ),
           })
           fs.writeFileSync(path.join(shareDir, `${doc.slug}.html`), html, 'utf8')
         } catch {

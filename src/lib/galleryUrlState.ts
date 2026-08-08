@@ -113,7 +113,7 @@ export function writeGalleryUrlState(state: GalleryUrlState): void {
   )
 }
 
-/** Shareable URL with only the collection filter (clears search/facet params). */
+/** In-app deep link with only the collection filter (clears search/facet params). */
 export function collectionPageUrl(slug: string): string {
   const url = new URL(window.location.href)
   url.searchParams.set(COLLECTION_PARAM, slug)
@@ -125,4 +125,36 @@ export function collectionPageUrl(slug: string): string {
     url.hash = ''
   }
   return url.toString()
+}
+
+/**
+ * Crawler-friendly collection share URL (`share/c/{slug}.html`) with OG meta.
+ * Prefer this when copying links for Discord/Slack; `?collection=` only updates the SPA.
+ */
+export function collectionSharePageUrl(
+  slug: string,
+  options?: { siteUrl?: string },
+): string {
+  const normalized = slug.trim().toLowerCase()
+  const viteBase = import.meta.env.BASE_URL || '/'
+  const basePath = viteBase.endsWith('/') ? viteBase : `${viteBase}/`
+  const rel = `${basePath}share/c/${encodeURIComponent(normalized)}.html`
+
+  const siteUrl = options?.siteUrl?.trim()
+  if (siteUrl) {
+    try {
+      const root = new URL(siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`)
+      const path = rel.startsWith('/') ? rel : `/${rel}`
+      return `${root.origin}${path}`
+    } catch {
+      /* fall through */
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    if (rel.startsWith('/')) return `${window.location.origin}${rel}`
+    return new URL(rel, window.location.href).toString()
+  }
+
+  return rel
 }

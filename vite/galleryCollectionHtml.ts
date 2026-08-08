@@ -41,11 +41,19 @@ export function renderGalleryCollectionPageHtml(
     (description?.trim() || siteDescription).slice(0, 300) || siteDescription
   const imageAbs = coverImageRel
     ? absolutePublicUrl(siteUrl, viteBase, coverImageRel)
-    : absolutePublicUrl(siteUrl, viteBase, '')
+    : null
 
   const rawHome = absolutePublicUrl(siteUrl, viteBase, '')
   const homeBase = rawHome.endsWith('/') ? rawHome : `${rawHome}/`
   const redirectTarget = `${homeBase}?collection=${encodeURIComponent(slug)}`
+
+  const imageMeta = imageAbs
+    ? `
+  <meta property="og:image" content="${escapeHtmlAttr(imageAbs)}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="${escapeHtmlAttr(imageAbs)}" />`
+    : `
+  <meta name="twitter:card" content="summary" />`
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtmlAttr(htmlLang)}">
@@ -58,12 +66,9 @@ export function renderGalleryCollectionPageHtml(
   <meta property="og:title" content="${escapeHtmlAttr(ogTitle)}" />
   <meta property="og:description" content="${escapeHtmlAttr(ogDescription)}" />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="${escapeHtmlAttr(pageAbs)}" />
-  <meta property="og:image" content="${escapeHtmlAttr(imageAbs)}" />
-  <meta name="twitter:card" content="summary_large_image" />
+  <meta property="og:url" content="${escapeHtmlAttr(pageAbs)}" />${imageMeta}
   <meta name="twitter:title" content="${escapeHtmlAttr(ogTitle)}" />
   <meta name="twitter:description" content="${escapeHtmlAttr(ogDescription)}" />
-  <meta name="twitter:image" content="${escapeHtmlAttr(imageAbs)}" />
   <meta http-equiv="refresh" content="0;url=${escapeHtmlAttr(redirectTarget)}" />
 </head>
 <body>

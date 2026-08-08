@@ -160,7 +160,7 @@ Not in git (see `.gitignore` → `local-scripts/`). Keep your copy on each machi
 
 GitHub Actions workflow `.github/workflows/deploy-pages.yml` runs `npm run build` on pushes to `main`/`master` when gallery or site code changes. Enable **Pages → Source: GitHub Actions** in the repo settings.
 
-Share pages for individual photos are emitted under `dist/share/p/` when `siteUrl` is set in `site.json`.
+Share pages for individual photos are emitted under `dist/share/p/` when `siteUrl` is set in `site.json`. Collection share pages (with collection-specific Open Graph tags) land under `dist/share/c/` — copy those URLs for Discord/Slack previews; `?collection=` deep links only update the SPA.
 
 ## Project structure
 
