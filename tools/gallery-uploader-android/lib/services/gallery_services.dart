@@ -569,7 +569,12 @@ class GalleryStageService {
       sourceBytes,
       fallbackBytes: destBytes,
     );
-    final blurHash = blurHashFromImageBytes(destBytes);
+
+    // Match site generate-assets: BlurHash from the 720px thumb, not the original.
+    final thumbOut = File(p.join(paths.thumbsDir, '$destId.jpg'));
+    await _writeThumb(destImage.path, thumbOut);
+    final blurSource = thumbOut.existsSync() ? await thumbOut.readAsBytes() : destBytes;
+    final blurHash = blurHashFromImageBytes(blurSource);
 
     final meta = galleryMetaFromUploadRow(
       row,
@@ -580,8 +585,6 @@ class GalleryStageService {
 
     final metaFile = File(p.join(paths.metaDir, '$destId.json'));
     await metaFile.writeAsString(meta.serialize());
-
-    await _writeThumb(destImage.path, File(p.join(paths.thumbsDir, '$destId.jpg')));
   }
 
   Future<void> _writeThumb(String sourcePath, File thumbOut) async {

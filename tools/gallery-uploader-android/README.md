@@ -30,7 +30,7 @@ public/gallery/
   thumbs/{id}.jpg       # 720px preview (gitignored; CI regenerates)
 ```
 
-During staging the app writes **contentHash**, **blurHash**, and **exifDisplay** into each sidecar in Dart (no Node/npm). Site CI still runs `npm run generate-assets` for display WebP and the full thumb set; `check-gallery-assets` allows blurHash/exifDisplay drift so CI can normalize those fields before deploy.
+During staging the app writes **contentHash**, **blurHash** (from the 720px preview thumb), and **exifDisplay** into each sidecar in Dart (no Node/npm). Site CI still runs `npm run generate-assets` for display WebP and the full thumb set; it fills blurHash only when missing and does not overwrite uploader-written hashes.
 
 ## Publish modes
 

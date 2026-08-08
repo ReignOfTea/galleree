@@ -5,7 +5,8 @@ import 'package:image/image.dart' as img;
 
 import 'blurhash_encode_ts.dart';
 
-/// Encode a 4×4 BlurHash from image bytes (32×32 max, fit inside — matches npm `blurHashFromImagePath`).
+/// Encode a 4×4 BlurHash from image bytes (32×32 max, fit inside).
+/// Prefer passing the 720px thumb bytes so this matches site `generate-assets`.
 String? blurHashFromImageBytes(List<int> bytes) {
   try {
     final decoded = img.decodeImage(Uint8List.fromList(bytes));

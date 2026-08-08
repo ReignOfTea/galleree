@@ -10,7 +10,7 @@
     "check-gallery-assets": "node scripts/check-gallery-assets-synced.mjs",
     "validate-meta": "node scripts/validate-gallery-meta.mjs",
     "backfill-content-hash": "node scripts/backfill-gallery-content-hash.mjs",
-    "build": "node scripts/generate-gallery-assets.mjs && node scripts/check-gallery-assets-synced.mjs --skip-generate && node scripts/validate-gallery-meta.mjs && tsc -b && vite build",
+    "build": "node scripts/generate-gallery-assets.mjs && node scripts/check-gallery-assets-synced.mjs --skip-generate --allow-blurhash-drift --allow-exif-drift && node scripts/validate-gallery-meta.mjs && tsc -b && vite build",
     "generate-blurhashes": "node scripts/generate-gallery-assets.mjs",
     "gallery:pull": "node scripts/gallery-pull-from-remote.mjs",
     "gallery:push": "node scripts/gallery-push-to-remote.mjs",

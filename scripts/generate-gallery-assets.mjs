@@ -110,9 +110,13 @@ async function writeBlurHashToMeta(metaPath, imagePath) {
   try {
     const raw = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
     if (!raw || typeof raw !== 'object') return false
+    // Keep uploader-written hashes. Android and sharp resize paths differ slightly
+    // (original vs 720 thumb → 32×32), so overwriting always churns sidecars in CI.
+    if (typeof raw.blurHash === 'string' && raw.blurHash.length >= 6) {
+      return false
+    }
     const hash = await blurHashFromImagePath(imagePath)
     if (!hash) return false
-    if (raw.blurHash === hash) return false
     raw.blurHash = hash
     fs.writeFileSync(metaPath, `${JSON.stringify(raw, null, 2)}\n`, 'utf8')
     return true
