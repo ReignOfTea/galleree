@@ -100,6 +100,9 @@ String? validateUploadRowForPublish(UploadRow row) {
   }
 
   final location = row.location.trim();
+  if (location.isEmpty) {
+    return '$label: location is required before upload.';
+  }
   if (location.length > galleryMetaLocationMaxLength) {
     return '$label: location must be at most $galleryMetaLocationMaxLength characters.';
   }
@@ -144,14 +147,22 @@ String? _validateCaptureFields(UploadRow row, String label) {
   if (row.captureDateTimeIso.isNotEmpty && DateTime.tryParse(row.captureDateTimeIso) == null) {
     return '$label: capture date/time is not valid.';
   }
-  if (row.captureDate.isEmpty) return null;
 
-  final parts = row.captureDate.split('-');
-  if (parts.length != 3 || !_capturedOnPattern.hasMatch(row.captureDate.trim())) {
-    return '$label: capture date must be YYYY-MM-DD.';
+  final hasDate = row.captureDate.trim().isNotEmpty;
+  final hasIso = row.captureDateTimeIso.trim().isNotEmpty;
+  if (!hasDate && !hasIso) {
+    return '$label: capture date/time is required before upload.';
   }
+
+  if (hasDate) {
+    final parts = row.captureDate.split('-');
+    if (parts.length != 3 || !_capturedOnPattern.hasMatch(row.captureDate.trim())) {
+      return '$label: capture date must be YYYY-MM-DD.';
+    }
+  }
+
   if (tryResolveCaptureDateTime(row) == null) {
-    return '$label: capture date is not a valid calendar date.';
+    return '$label: capture date/time is not a valid calendar date.';
   }
   return null;
 }

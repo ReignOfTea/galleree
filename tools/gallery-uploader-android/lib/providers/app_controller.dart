@@ -228,6 +228,41 @@ class AppController extends StateNotifier<AppState> {
       sessionDefaults: restored.sessionDefaults ?? state.sessionDefaults,
       status: msg,
     );
+    await _fillMissingCaptureAndLocation();
+  }
+
+  /// Fill empty date/location on queued photos from EXIF, then session defaults.
+  Future<void> _fillMissingCaptureAndLocation() async {
+    if (state.rows.isEmpty) return;
+    final defaults = state.sessionDefaults;
+    final updated = <UploadRow>[];
+    var changed = 0;
+    for (final row in state.rows) {
+      final needsExif = row.location.trim().isEmpty ||
+          (row.captureDate.trim().isEmpty && row.captureDateTimeIso.trim().isEmpty) ||
+          (row.captureDate.trim().isEmpty && row.captureDateTimeIso.trim().isNotEmpty);
+      var next = row;
+      if (needsExif) {
+        final hints = await _exif.readHints(row.sourcePath);
+        next = fillMissingFromExifHints(next, hints);
+      }
+      next = fillMissingFromSessionDefaults(next, defaults);
+      if (next.location != row.location ||
+          next.captureDate != row.captureDate ||
+          next.captureDateTimeIso != row.captureDateTimeIso) {
+        changed++;
+      }
+      updated.add(next);
+    }
+    if (changed == 0) return;
+    final prior = state.status?.trim() ?? '';
+    state = state.copyWith(
+      rows: updated,
+      status: prior.isEmpty
+          ? 'Filled date/location from photo metadata where available.'
+          : '$prior Filled date/location from metadata where available.',
+    );
+    _scheduleDraftSave();
   }
 
   void _loadSiteConfigDraft(AppConfig config) {
@@ -521,13 +556,17 @@ class AppController extends StateNotifier<AppState> {
           captureDate = captureDateToCapturedOn(hints.captureDateTime) ?? captureDate;
         }
 
+        final location = (hints.location != null && hints.location!.trim().isNotEmpty)
+            ? hints.location!.trim()
+            : defaults.location;
+
         newRows.add(UploadRow(
           id: const Uuid().v4(),
           sourcePath: path,
           title: titleFromFilename(path),
           description: hints.description ?? '',
           tags: defaults.tags,
-          location: defaults.location,
+          location: location,
           captureDate: captureDate,
           captureDateTimeIso: captureIso,
           collectionSelect: defaults.collectionSelect,
@@ -791,7 +830,10 @@ class AppController extends StateNotifier<AppState> {
   }
 
   void updateSessionDefaults(SessionDefaults defaults) {
-    state = state.copyWith(sessionDefaults: defaults);
+    final rows = state.rows
+        .map((row) => fillMissingFromSessionDefaults(row, defaults))
+        .toList();
+    state = state.copyWith(sessionDefaults: defaults, rows: rows);
     _storage.saveSessionDefaults(defaults);
     _scheduleDraftSave();
   }

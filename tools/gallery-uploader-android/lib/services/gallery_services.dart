@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/gallery_meta.dart';
 import '../models/models.dart';
+import '../utils/batch_edit.dart';
 import '../utils/blurhash_from_image.dart';
 import '../utils/exif_display_publish.dart';
 import '../utils/registry_slug.dart';
@@ -331,6 +332,7 @@ class ExifHints {
   ExifHints({
     this.description,
     this.captureDateTime,
+    this.location,
     this.make,
     this.model,
     this.lensModel,
@@ -338,9 +340,55 @@ class ExifHints {
 
   final String? description;
   final DateTime? captureDateTime;
+  final String? location;
   final String? make;
   final String? model;
   final String? lensModel;
+}
+
+/// Fill empty capture date/time and location from EXIF hints (does not overwrite set fields).
+UploadRow fillMissingFromExifHints(UploadRow row, ExifHints hints) {
+  var next = row;
+
+  if (next.location.trim().isEmpty) {
+    final location = hints.location?.trim() ?? '';
+    if (location.isNotEmpty) {
+      next = next.copyWith(location: location);
+    }
+  }
+
+  final missingCapture =
+      next.captureDate.trim().isEmpty && next.captureDateTimeIso.trim().isEmpty;
+  if (missingCapture && hints.captureDateTime != null) {
+    final dt = hints.captureDateTime!;
+    next = next.copyWith(
+      captureDate: captureDateToCapturedOn(dt) ?? '',
+      captureDateTimeIso: dt.toUtc().toIso8601String(),
+    );
+  } else if (next.captureDate.trim().isEmpty && next.captureDateTimeIso.trim().isNotEmpty) {
+    final dt = DateTime.tryParse(next.captureDateTimeIso);
+    if (dt != null) {
+      next = next.copyWith(captureDate: captureDateToCapturedOn(dt) ?? '');
+    }
+  } else if (next.captureDateTimeIso.trim().isEmpty && next.captureDate.trim().isNotEmpty) {
+    next = applyCaptureDatePatch(next, next.captureDate);
+  }
+
+  return next;
+}
+
+/// Fill empty capture date and location from session defaults.
+UploadRow fillMissingFromSessionDefaults(UploadRow row, SessionDefaults defaults) {
+  var next = row;
+  if (next.location.trim().isEmpty && defaults.location.trim().isNotEmpty) {
+    next = next.copyWith(location: defaults.location.trim());
+  }
+  final missingCapture =
+      next.captureDate.trim().isEmpty && next.captureDateTimeIso.trim().isEmpty;
+  if (missingCapture && defaults.captureDate.trim().isNotEmpty) {
+    next = applyCaptureDatePatch(next, defaults.captureDate.trim());
+  }
+  return next;
 }
 
 class ExifService {
@@ -350,32 +398,130 @@ class ExifService {
       final data = await readExifFromBytes(bytes);
       if (data.isEmpty) return ExifHints();
 
-      String? description = _tagString(data, 'Image Description');
-      final dateStr = _tagString(data, 'DateTimeOriginal') ?? _tagString(data, 'DateTime');
+      final dateStr = _tagString(data, const [
+        'EXIF DateTimeOriginal',
+        'DateTimeOriginal',
+        'Image DateTime',
+        'DateTime',
+        'EXIF DateTimeDigitized',
+      ]);
+      final offset = _tagString(data, const [
+        'EXIF OffsetTimeOriginal',
+        'OffsetTimeOriginal',
+        'EXIF OffsetTime',
+        'OffsetTime',
+      ]);
       DateTime? capture;
       if (dateStr != null) {
-        capture = _parseExifDate(dateStr);
+        capture = _parseExifDate(dateStr, offset: offset);
       }
       return ExifHints(
-        description: description,
+        description: _tagString(data, const [
+          'Image ImageDescription',
+          'Image Description',
+          'ImageDescription',
+        ]),
         captureDateTime: capture,
-        make: _tagString(data, 'Make'),
-        model: _tagString(data, 'Model'),
-        lensModel: _tagString(data, 'LensModel'),
+        location: _locationFromTags(data),
+        make: _tagString(data, const ['Image Make', 'Make']),
+        model: _tagString(data, const ['Image Model', 'Model']),
+        lensModel: _tagString(data, const ['EXIF LensModel', 'LensModel']),
       );
     } catch (_) {
       return ExifHints();
     }
   }
 
-  String? _tagString(Map<String, IfdTag> data, String key) {
-    final tag = data[key];
-    if (tag == null) return null;
-    final v = tag.printable.trim();
-    return v.isEmpty ? null : v;
+  String? _tagString(Map<String, IfdTag> data, List<String> keys) {
+    for (final key in keys) {
+      final tag = data[key];
+      if (tag == null) continue;
+      final v = tag.printable.trim();
+      if (v.isNotEmpty) return v;
+    }
+    return null;
   }
 
-  DateTime? _parseExifDate(String raw) {
+  String? _locationFromTags(Map<String, IfdTag> data) {
+    final sublocation = _tagString(data, const [
+      'IPTC Sub-location',
+      'Sub-location',
+      'SubLocation',
+      'EXIF Sublocation',
+    ]);
+    final city = _tagString(data, const ['IPTC City', 'City']);
+    final country = _tagString(data, const [
+      'IPTC Country/Primary Location Name',
+      'Country',
+      'Country-PrimaryLocationName',
+    ]);
+    final parts = <String>[
+      if (sublocation != null) sublocation,
+      if (city != null) city,
+      if (country != null) country,
+    ];
+    if (parts.isNotEmpty) {
+      final joined = parts.join(', ');
+      return joined.length <= galleryMetaLocationMaxLength ? joined : joined.substring(0, galleryMetaLocationMaxLength);
+    }
+
+    final gps = _gpsLocationString(data);
+    if (gps != null) return gps;
+    return null;
+  }
+
+  String? _gpsLocationString(Map<String, IfdTag> data) {
+    final lat = _gpsCoordinate(
+      data,
+      const ['GPS GPSLatitude', 'GPSLatitude'],
+      const ['GPS GPSLatitudeRef', 'GPSLatitudeRef'],
+      northPositive: true,
+    );
+    final lon = _gpsCoordinate(
+      data,
+      const ['GPS GPSLongitude', 'GPSLongitude'],
+      const ['GPS GPSLongitudeRef', 'GPSLongitudeRef'],
+      northPositive: false,
+    );
+    if (lat == null || lon == null) return null;
+    final formatted =
+        '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}';
+    return formatted.length <= galleryMetaLocationMaxLength ? formatted : null;
+  }
+
+  double? _gpsCoordinate(
+    Map<String, IfdTag> data,
+    List<String> valueKeys,
+    List<String> refKeys, {
+    required bool northPositive,
+  }) {
+    final tag = valueKeys.map((k) => data[k]).firstWhere((t) => t != null, orElse: () => null);
+    if (tag == null || tag.values.length < 3) return null;
+    final values = tag.values.toList();
+    double part(Object v) {
+      if (v is Ratio) {
+        if (v.denominator == 0) return 0;
+        return v.numerator / v.denominator;
+      }
+      if (v is int) return v.toDouble();
+      if (v is double) return v;
+      return double.tryParse(v.toString()) ?? 0;
+    }
+
+    final deg = part(values[0]);
+    final min = part(values[1]);
+    final sec = part(values[2]);
+    var decimal = deg + (min / 60.0) + (sec / 3600.0);
+    final ref = _tagString(data, refKeys)?.toUpperCase();
+    if (ref == 'S' || ref == 'W') {
+      decimal = -decimal;
+    } else if (ref == null && !northPositive) {
+      // keep as-is when ref missing
+    }
+    return decimal;
+  }
+
+  DateTime? _parseExifDate(String raw, {String? offset}) {
     final parts = raw.split(RegExp(r'[:\s]'));
     if (parts.length < 3) return null;
     try {
@@ -385,6 +531,17 @@ class ExifService {
       final h = parts.length > 3 ? int.parse(parts[3]) : 0;
       final min = parts.length > 4 ? int.parse(parts[4]) : 0;
       final s = parts.length > 5 ? int.parse(parts[5]) : 0;
+      final wallUtc = DateTime.utc(y, m, d, h, min, s);
+      final match = offset == null
+          ? null
+          : RegExp(r'^([+-])(\d{2}):?(\d{2})$').firstMatch(offset.trim());
+      if (match != null) {
+        final sign = match.group(1) == '-' ? -1 : 1;
+        final oh = int.parse(match.group(2)!);
+        final om = int.parse(match.group(3)!);
+        final totalMin = sign * (oh * 60 + om);
+        return wallUtc.subtract(Duration(minutes: totalMin));
+      }
       return DateTime(y, m, d, h, min, s);
     } catch (_) {
       return null;

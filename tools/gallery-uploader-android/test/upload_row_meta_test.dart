@@ -7,12 +7,18 @@ UploadRow _row({
   String destId = 'a1b2c3d4e5f6478990a1b2c3d4e5f678',
   String title = 'Sunset',
   String tags = '',
+  String location = 'London',
+  String captureDate = '2024-06-01',
+  String captureDateTimeIso = '2024-06-01T12:00:00.000Z',
 }) {
   return UploadRow(
     id: id,
     sourcePath: '/tmp/photo.jpg',
     title: title,
     tags: tags,
+    location: location,
+    captureDate: captureDate,
+    captureDateTimeIso: captureDateTimeIso,
     destId: destId,
     destFilename: '$destId.jpg',
   );
@@ -30,6 +36,20 @@ void main() {
     );
   });
 
+  test('validateUploadRowForPublish rejects empty location', () {
+    expect(
+      validateUploadRowForPublish(_row(location: '  ')),
+      contains('location is required'),
+    );
+  });
+
+  test('validateUploadRowForPublish rejects missing capture date/time', () {
+    expect(
+      validateUploadRowForPublish(_row(captureDate: '', captureDateTimeIso: '')),
+      contains('capture date/time is required'),
+    );
+  });
+
   test('validateUploadRowForPublish rejects long title', () {
     final error = validateUploadRowForPublish(_row(title: 'x' * 201));
     expect(error, contains('title must be at most 200 characters'));
@@ -44,7 +64,7 @@ void main() {
 
   test('validateUploadRowForPublish rejects invalid capture date', () {
     final error = validateUploadRowForPublish(
-      _row()..captureDate = '2024-13-40',
+      _row(captureDate: '2024-13-40', captureDateTimeIso: ''),
     );
     expect(error, contains('capture date'));
   });
@@ -68,5 +88,8 @@ void main() {
     expect(meta.title, 'Sunset');
     expect(meta.tags, ['Landscape', 'Sunset']);
     expect(meta.id, 'a1b2c3d4e5f6478990a1b2c3d4e5f678');
+    expect(meta.location, 'London');
+    expect(meta.capturedOn, '2024-06-01');
+    expect(meta.capturedAt, isNotNull);
   });
 }

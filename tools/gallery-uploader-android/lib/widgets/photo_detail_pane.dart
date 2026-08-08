@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../utils/batch_edit.dart';
 import 'local_image_preview.dart';
 import 'tags_input.dart';
 
@@ -73,12 +74,14 @@ class PhotoDetailPane extends StatelessWidget {
           label: 'Location',
           value: row.location,
           onChanged: (v) => onChanged(row.copyWith(location: v)),
+          required: true,
         ),
         _field(
           context,
           label: 'Capture date (YYYY-MM-DD)',
           value: row.captureDate,
-          onChanged: (v) => onChanged(row.copyWith(captureDate: v)),
+          onChanged: (v) => onChanged(applyCaptureDatePatch(row, v)),
+          required: true,
         ),
         const SizedBox(height: 8),
         _dropdown(
