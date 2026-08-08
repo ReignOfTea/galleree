@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-/// BlurHash encoder matching the npm `blurhash` package (Wolt TypeScript).
-/// blurhash_dart uses a different encoder; CI uses npm via generate-assets.
+/// BlurHash encoder matching the site's TypeScript / npm `blurhash` package (Wolt).
+/// Prefer this over blurhash_dart, which uses a different encoder.
 String encodeBlurHashTs(
   Uint8List pixels,
   int width,

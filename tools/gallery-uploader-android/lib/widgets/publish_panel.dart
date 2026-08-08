@@ -100,9 +100,9 @@ class _PublishPanelState extends State<PublishPanel> {
         if (_showSidecarHint) ...[
           const SizedBox(height: 8),
           OnboardingHintCard(
-            title: 'CI sidecar fields',
+            title: 'Sidecar fields',
             body:
-                'The app writes blurHash and exifDisplay in each photo sidecar during staging when it can read the image. Site CI may normalize those fields before deploy. On Windows with Node.js, npm generate-assets can also run before publish.',
+                'During staging the app writes contentHash, blurHash, and exifDisplay into each photo sidecar. Site CI still builds display WebP and the full thumb set before deploy.',
             storageKey: AppStorage.onboardingSidecarKey,
             onDismissed: () => setState(() => _showSidecarHint = false),
           ),

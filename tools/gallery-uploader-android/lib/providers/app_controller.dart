@@ -18,7 +18,6 @@ import '../services/app_storage.dart';
 import '../services/display_preview_service.dart';
 import '../services/draft_session_service.dart';
 import '../services/gallery_services.dart';
-import '../services/generate_assets_service.dart';
 import '../services/github_gallery_service.dart';
 import '../services/operation_cancel.dart';
 import '../services/site_config_service.dart';
@@ -30,8 +29,6 @@ final githubServiceProvider = Provider<GitHubGalleryService>((ref) => GitHubGall
 final registryServiceProvider = Provider<GalleryRegistryService>((ref) => GalleryRegistryService());
 final stageServiceProvider = Provider<GalleryStageService>((ref) => GalleryStageService());
 final exifServiceProvider = Provider<ExifService>((ref) => ExifService());
-final generateAssetsServiceProvider =
-    Provider<GenerateAssetsService>((ref) => GenerateAssetsService());
 final draftSessionServiceProvider = Provider<DraftSessionService>((ref) => DraftSessionService());
 final siteConfigServiceProvider = Provider<SiteConfigService>((ref) => SiteConfigService());
 final displayPreviewServiceProvider = Provider<DisplayPreviewService>((ref) => DisplayPreviewService());
@@ -166,7 +163,6 @@ class AppController extends StateNotifier<AppState> {
   GalleryRegistryService get _registry => _ref.read(registryServiceProvider);
   GalleryStageService get _stage => _ref.read(stageServiceProvider);
   ExifService get _exif => _ref.read(exifServiceProvider);
-  GenerateAssetsService get _generateAssets => _ref.read(generateAssetsServiceProvider);
   DraftSessionService get _drafts => _ref.read(draftSessionServiceProvider);
   SiteConfigService get _siteConfig => _ref.read(siteConfigServiceProvider);
   UploaderUpdateService get _updates => _ref.read(uploaderUpdateServiceProvider);
@@ -846,11 +842,6 @@ class AppController extends StateNotifier<AppState> {
         }
       }
 
-      final generateResult = await _generateAssets.runIfAvailable(
-        config.workdir,
-        onProgress: _setProgress,
-      );
-
       _cancelToken?.throwIfCanceled();
       await _github.publish(
         pat: pat,
@@ -867,10 +858,6 @@ class AppController extends StateNotifier<AppState> {
       await _drafts.clear();
       _cancelToken = null;
       _clearProgress();
-      final status = generateResult.ran
-          ? 'Published to GitHub.'
-          : 'Published to GitHub. npm generate-assets was not run (Node.js or gallery package.json missing in the workdir). '
-              'blurHash and exifDisplay were written in-app when possible; site CI normalizes them before deploy.';
       state = state.copyWith(
         rows: [],
         selectedRowIds: {},
@@ -879,7 +866,7 @@ class AppController extends StateNotifier<AppState> {
         busy: false,
         operationCancelable: false,
         clearProgress: true,
-        status: status,
+        status: 'Published to GitHub.',
       );
     } on OperationCanceledException {
       _cancelToken = null;
