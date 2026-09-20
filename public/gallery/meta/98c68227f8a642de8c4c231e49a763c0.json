@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "id": "98c68227f8a642de8c4c231e49a763c0",
+  "title": "Freedom Watch GB - Manchester",
+  "tags": [
+    "Monty",
+    "Freedom Watch GB",
+    "Will Coleshill"
+  ],
+  "description": "Freedom Watch GB - Manchester",
+  "location": "Manchester, UK",
+  "capturedOn": "2026-08-01",
+  "capturedAt": "2026-08-01T15:40:52.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "freedom-watch-gb-manchester",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:51:52.680282Z",
+  "contentHash": "9d0050a9422e3a45152d0a3efece62dba00d6cfb60dcfb5440908501431aaa91",
+  "blurHash": "UMEM5*-;D$Ri?Gxu%Mxt~pW-M{kC?aozWEM{",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "29 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "29 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/4.0"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/60 s"
+    },
+    {
+      "label": "ISO",
+      "value": "100.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Aug 1, 2026 4:40 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:47 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Aug 1, 2026 4:40 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}
