@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "id": "0e05cec801884a66a298c0f27d68fa55",
+  "title": "Restore Makerfield",
+  "tags": [
+    "Restore Britain"
+  ],
+  "description": "Man campaigns in the streets of Makerfield",
+  "location": "Makerfield, UK",
+  "capturedOn": "2026-06-13",
+  "capturedAt": "2026-06-13T13:16:21.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "restore-britain",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:11:05.411345Z",
+  "contentHash": "5c7d39d8cc0d4f073ee1f4a0217a233ca1a5ebd313645a60df85f4a258b3af51",
+  "blurHash": "U57BQBR400?wvyyEI=R38wM_.SnjxvROM{tS",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "118 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "118 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/5.0"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/125 s"
+    },
+    {
+      "label": "ISO",
+      "value": "320.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jun 13, 2026 2:16 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:07 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jun 13, 2026 2:16 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}

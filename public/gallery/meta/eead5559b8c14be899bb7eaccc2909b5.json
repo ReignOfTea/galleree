@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "id": "eead5559b8c14be899bb7eaccc2909b5",
+  "title": "Restore Makerfield Crowd",
+  "tags": [
+    "Restore Britain"
+  ],
+  "description": "A large crowd of Restore Britain members turn out in Makerfield",
+  "location": "Makerfield, UK",
+  "capturedOn": "2026-06-13",
+  "capturedAt": "2026-06-13T09:46:16.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "restore-britain",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:11:07.427784Z",
+  "contentHash": "716846d1e5cab177159515f15df97e98226890222f16f02c54032a7af231f1f3",
+  "blurHash": "U5Amk]%O=}~WK;?btm%ME]-;%Nx]~Wnk?H-=",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "28 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "28 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/16.0"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/30 s"
+    },
+    {
+      "label": "ISO",
+      "value": "400.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jun 13, 2026 10:46 AM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:07 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jun 13, 2026 10:46 AM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}
