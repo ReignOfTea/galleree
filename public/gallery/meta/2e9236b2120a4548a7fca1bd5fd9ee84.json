@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "2e9236b2120a4548a7fca1bd5fd9ee84",
+  "title": "Challanged by Young Bob #6",
+  "tags": [
+    "People",
+    "Young Bob"
+  ],
+  "description": "Challanged by Young Bob",
+  "location": "Camden, UK",
+  "capturedOn": "2026-07-03",
+  "capturedAt": "2026-07-03T18:15:10.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "young-bob-camden",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:24:46.191927Z",
+  "contentHash": "626a4d92b8082e68b5a8dc08ebf894bc4d1d3fde0fd968ac49222fd6448fca44",
+  "blurHash": "UFEoMw;U-rD%}u,CMxaJyrMwoIV?t-JSo#oe",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "82 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "82 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/4.5"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/200 s"
+    },
+    {
+      "label": "ISO",
+      "value": "640.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "1.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jul 3, 2026 7:15 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:13 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jul 3, 2026 7:15 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}

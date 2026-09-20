@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "ed93f5eccaae484cb30a6b0cac325f63",
+  "title": "Fr Luke and Young Bob",
+  "tags": [
+    "People",
+    "Young Bob"
+  ],
+  "description": "Fr Luke and Young Bob",
+  "location": "Camden, UK",
+  "capturedOn": "2026-07-03",
+  "capturedAt": "2026-07-03T15:36:14.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "young-bob-camden",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:24:40.570774Z",
+  "contentHash": "b66cb06280df9795f713cc0f75990c3b471833637e2148f711c5e17856544f2a",
+  "blurHash": "UOEeov?wk?^,%2XAxuxaoz%2s:W=N{%2%2S4",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "75 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "75 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/5.6"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/80 s"
+    },
+    {
+      "label": "ISO",
+      "value": "320.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jul 3, 2026 4:36 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:14 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jul 3, 2026 4:36 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}

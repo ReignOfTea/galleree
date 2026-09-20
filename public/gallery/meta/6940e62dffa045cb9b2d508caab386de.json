@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "6940e62dffa045cb9b2d508caab386de",
+  "title": "Young Bob Assaulter Removed",
+  "tags": [
+    "People",
+    "Young Bob"
+  ],
+  "description": "Young Bob assaulter, Camden",
+  "location": "Camden, UK",
+  "capturedOn": "2026-07-03",
+  "capturedAt": "2026-07-03T16:49:33.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "young-bob-camden",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:24:35.297212Z",
+  "contentHash": "4f0e69932fb3809e6211f077bc8256f1ff62bc74480db5e5a901dac747142f59",
+  "blurHash": "URC$$KD%Ip-;~VM{M|%MjFofxFoeNHoMxZV@",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "30 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "30 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/6.3"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/200 s"
+    },
+    {
+      "label": "ISO",
+      "value": "320.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "1.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jul 3, 2026 5:49 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:14 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jul 3, 2026 5:49 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}

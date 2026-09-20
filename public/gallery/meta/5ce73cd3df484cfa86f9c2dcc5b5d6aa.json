@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "5ce73cd3df484cfa86f9c2dcc5b5d6aa",
+  "title": "Priested",
+  "tags": [
+    "People",
+    "Young Bob"
+  ],
+  "description": "Fr. Luke addresses questions at a public stand, Camden",
+  "location": "Camden, UK",
+  "capturedOn": "2026-07-03",
+  "capturedAt": "2026-07-03T18:56:59.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "young-bob-camden",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:24:23.817355Z",
+  "contentHash": "121dc89628eccceb444d3f0b8f24a0de910f851937ba50cddfcf97f1e0362a1d",
+  "blurHash": "UDEL,5R3Kgx?~D~VoE%d$+-qM]V=^,M|oaav",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "70 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "70 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/6.3"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/200 s"
+    },
+    {
+      "label": "ISO",
+      "value": "2500.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "1.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jul 3, 2026 7:56 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:13 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jul 3, 2026 7:56 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}

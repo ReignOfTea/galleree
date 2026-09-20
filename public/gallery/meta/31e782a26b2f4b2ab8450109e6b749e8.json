@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "31e782a26b2f4b2ab8450109e6b749e8",
+  "title": "English Ned at YB Stand",
+  "tags": [
+    "People",
+    "Young Bob"
+  ],
+  "description": "English Ned at YB Stand",
+  "location": "Camden, UK",
+  "capturedOn": "2026-07-03",
+  "capturedAt": "2026-07-03T16:06:13.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "young-bob-camden",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:24:39.180950Z",
+  "contentHash": "3eae895847237267889b50047e191cdf952707ca170282b49e1c2ac0b6f22493",
+  "blurHash": "UZIEC5~U-nxZ?aofoLX8x]W=RkR+-ooJaKt6",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "75 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "75 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/4.0"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/60 s"
+    },
+    {
+      "label": "ISO",
+      "value": "50.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jul 3, 2026 5:06 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:14 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jul 3, 2026 5:06 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}

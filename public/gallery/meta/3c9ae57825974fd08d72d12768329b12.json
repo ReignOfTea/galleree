@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "id": "3c9ae57825974fd08d72d12768329b12",
+  "title": "Carried Away",
+  "tags": [
+    "People",
+    "Arrest",
+    "Police"
+  ],
+  "description": "Young Bob assaulter arrested, Camden",
+  "location": "Camden, UK",
+  "capturedOn": "2026-07-03",
+  "capturedAt": "2026-07-03T16:52:49.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "young-bob-camden",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:24:32.022644Z",
+  "contentHash": "830a11c0b6f56b6e65a195994dd7d85e67b129fa72c65a13e25808847f973c76",
+  "blurHash": "UPA]{NxuRkRk~VxtWCNG-pxtofM|%Lxat7Rk",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "52 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "52 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/9.0"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/200 s"
+    },
+    {
+      "label": "ISO",
+      "value": "1000.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "1.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jul 3, 2026 5:52 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:14 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jul 3, 2026 5:52 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}
