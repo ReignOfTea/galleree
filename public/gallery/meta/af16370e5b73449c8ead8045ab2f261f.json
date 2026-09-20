@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "id": "af16370e5b73449c8ead8045ab2f261f",
+  "title": "March For Life 2026 #31",
+  "tags": [
+    "People"
+  ],
+  "description": "March For Life 2026",
+  "location": "London, UK",
+  "capturedOn": "2026-08-05",
+  "capturedAt": "2026-08-05T13:38:01.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "march-for-life-2026",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T17:17:59.893311Z",
+  "contentHash": "38287ada497eadd9a6009451cd555e0c5e833d238b5cc63d1feab36bca691d44",
+  "blurHash": "UADcB.0J?b%#_KI8H=x]yWI9xcSv_3J6RQ.7",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "29 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "29 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/6.3"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/60 s"
+    },
+    {
+      "label": "ISO",
+      "value": "100.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Sep 5, 2026 2:38 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 6:09 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Sep 5, 2026 2:38 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}
