@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "id": "0d5013cbdc6248c9b7f236c9d75bf3de",
+  "title": "St Barts",
+  "tags": [
+    "Church"
+  ],
+  "location": "St Barts, London",
+  "capturedOn": "2026-07-27",
+  "capturedAt": "2026-07-27T18:44:45.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "st-bartholomew",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:45:18.897124Z",
+  "contentHash": "6d71c59fe7f30bf121bbe05d3ba045e65fc5e065172f54b839c6aeae35e01215",
+  "blurHash": "UXDl1p9vf5w]}?9^s,sn$xI;t7aet7WBbHoM",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "Viltrox 85mm F1.8"
+    },
+    {
+      "label": "Focal length",
+      "value": "85 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "85 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/1.8"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/100 s"
+    },
+    {
+      "label": "ISO",
+      "value": "1250.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "1.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jul 27, 2026 7:44 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:40 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jul 27, 2026 7:44 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}

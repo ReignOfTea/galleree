@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "id": "0cbb25e61f7f4ed188aee8500ce75f4d",
+  "title": "St Barts",
+  "tags": [
+    "Church"
+  ],
+  "location": "St Barts, London",
+  "capturedOn": "2026-07-27",
+  "capturedAt": "2026-07-27T17:38:43.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "st-bartholomew",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:44:59.403095Z",
+  "contentHash": "e67fc89955fd9faf9579ea3476f3402bf4c5eaba393f2b28f51d9335bdbdd465",
+  "blurHash": "UNHU2yQ-~A9a}=rXxuWW9aXSIqjs%MozNFR+",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "200 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "200 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/5.6"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/200 s"
+    },
+    {
+      "label": "ISO",
+      "value": "5000.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "1.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Jul 27, 2026 6:38 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:41 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Jul 27, 2026 6:38 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}
