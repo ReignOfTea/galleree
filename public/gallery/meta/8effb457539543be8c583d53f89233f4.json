@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "8effb457539543be8c583d53f89233f4",
+  "title": "Young Bob Bristol Stand",
+  "tags": [
+    "Young Bob",
+    "People"
+  ],
+  "description": "Young Bob Bristol Stand",
+  "location": "Bristol, UK",
+  "capturedOn": "2026-08-02",
+  "capturedAt": "2026-08-02T14:04:57.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "young-bob-bristol",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T16:59:20.367435Z",
+  "contentHash": "b0dc9ce9f4db8e2c47d1bb7b7197a97f0fb5b90cf3de9dcecb048c873de9e889",
+  "blurHash": "UFFYDm4?~q%2%1t7WTE1IUt1IntS-oE2xuxu",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "71 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "71 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/6.3"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/320 s"
+    },
+    {
+      "label": "ISO",
+      "value": "200.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "1.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Aug 2, 2026 3:04 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 5:54 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Aug 2, 2026 3:04 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}
