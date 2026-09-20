@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "3a1d5a74883b4808882e0be6df251efb",
+  "title": "Monty Stand - Birmingham",
+  "tags": [
+    "Monty",
+    "People"
+  ],
+  "description": "Monty Stand - Birmingham",
+  "location": "Birmingham, UK",
+  "capturedOn": "2026-08-22",
+  "capturedAt": "2026-08-22T15:59:16.000Z",
+  "camera": "sony-ilce-7m4",
+  "lens": "tamron-28-200mm-f28-56-di-iii-rxd",
+  "collectionSlug": "monty-stand-birmingham",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-20T17:05:44.543221Z",
+  "contentHash": "67fd554972960d0c72e8fc5172daf2410d6c871ead13e33c558fedd4f75232b9",
+  "blurHash": "UBEV{J~o00%N8_?b?vWA00Dj%NRiM_9FIB%N",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "Viltrox 55mm F1.8 FE"
+    },
+    {
+      "label": "Focal length",
+      "value": "55 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "55 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/1.8"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/400 s"
+    },
+    {
+      "label": "ISO",
+      "value": "100.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Aug 22, 2026 4:59 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 20, 2026 6:01 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Aug 22, 2026 4:59 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}
