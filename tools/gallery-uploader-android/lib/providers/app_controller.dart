@@ -16,6 +16,7 @@ import '../utils/registry_slug.dart';
 import '../utils/tag_suggest.dart';
 import '../utils/upload_row_meta.dart';
 import '../services/app_storage.dart';
+import '../services/debug_log.dart';
 import '../services/display_preview_service.dart';
 import '../services/draft_session_service.dart';
 import '../services/gallery_services.dart';
@@ -26,7 +27,11 @@ import '../services/uploader_update_service.dart';
 import '../widgets/registry_create_dialog.dart';
 
 final appStorageProvider = Provider<AppStorage>((ref) => AppStorage());
-final githubServiceProvider = Provider<GitHubGalleryService>((ref) => GitHubGalleryService());
+final githubServiceProvider = Provider<GitHubGalleryService>((ref) {
+  return GitHubGalleryService(
+    onLog: (message) => ref.read(debugLogProvider.notifier).add(message),
+  );
+});
 final registryServiceProvider = Provider<GalleryRegistryService>((ref) => GalleryRegistryService());
 final stageServiceProvider = Provider<GalleryStageService>((ref) => GalleryStageService());
 final exifServiceProvider = Provider<ExifService>((ref) => ExifService());
@@ -131,6 +136,15 @@ class AppState {
 
   bool get isConfigured => config != null && hasPat;
 
+  List<String> get publishBlockingErrors {
+    final errors = <String>[];
+    for (final row in rows) {
+      final error = validateUploadRowForPublish(row);
+      if (error != null) errors.add(error);
+    }
+    return errors;
+  }
+
   List<String> get knownTags {
     final merged = <String>[...galleryTags];
     for (final row in rows) {
@@ -181,12 +195,19 @@ class AppController extends StateNotifier<AppState> {
       commitMessage: commitMessage,
       queueViewMode: queueViewMode,
     );
+    _log(
+      config == null
+          ? 'Startup: no gallery repo configured yet.'
+          : 'Startup: repo ${config.repoUrl} (${config.branch}), PAT ${pat != null && pat.isNotEmpty ? 'present' : 'missing'}.',
+    );
     if (config != null && pat != null && pat.isNotEmpty) {
       SchedulerBinding.instance.scheduleFrameCallback((_) {
         unawaited(_warmGalleryOnLaunch(config: config));
       });
     }
   }
+
+  void _log(String message) => _ref.read(debugLogProvider.notifier).add(message);
 
   void _scheduleDraftSave() {
     _draftTimer?.cancel();
@@ -278,7 +299,10 @@ class AppController extends StateNotifier<AppState> {
   }
 
   void _setProgress(String? message, {void Function(String message)? onProgress}) {
-    if (message != null) onProgress?.call(message);
+    if (message != null) {
+      onProgress?.call(message);
+      _log(message);
+    }
     if (message == state.progress) return;
     state = state.copyWith(progress: message);
   }
@@ -435,7 +459,14 @@ class AppController extends StateNotifier<AppState> {
   Future<void> syncGallery() async {
     final config = state.config;
     final pat = await _storage.readPat();
-    if (config == null || pat == null) return;
+    if (config == null || pat == null || pat.isEmpty) {
+      _setUserStatus(
+        config == null
+            ? 'Gallery is not configured. Open Git settings and connect the repo.'
+            : 'Personal access token is missing. Open Git settings and save a PAT.',
+      );
+      return;
+    }
     _beginCancelableOperation('Syncing…');
     try {
       await _github.syncLatest(
@@ -463,6 +494,7 @@ class AppController extends StateNotifier<AppState> {
   void _endCancelableOperation({String? status}) {
     _cancelToken = null;
     _clearProgress();
+    if (status != null) _log(status);
     state = state.copyWith(
       busy: false,
       operationCancelable: false,
@@ -695,7 +727,16 @@ class AppController extends StateNotifier<AppState> {
 
   void applyBulkTitle(BulkTitleOptions options) {
     final scope = state.selectedRowIds.isEmpty ? null : state.selectedRowIds;
+    final count = scope == null ? state.rows.length : scope.length;
     setRows(applyBulkTitlesToRows(state.rows, scope, options));
+    if (options.mode == BulkTitleMode.incremental) {
+      final name = options.text.trim();
+      state = state.copyWith(
+        status:
+            'Named $count photo${count == 1 ? '' : 's'} "$name #${options.start}"…',
+      );
+      return;
+    }
     state = state.copyWith(status: 'Bulk title update applied.');
   }
 
@@ -873,20 +914,39 @@ class AppController extends StateNotifier<AppState> {
 
   void setPublishMode(PublishMode mode) => state = state.copyWith(publishMode: mode);
 
-  void setStatus(String message) => state = state.copyWith(status: message);
+  void setStatus(String message) => _setUserStatus(message);
+
+  void _setUserStatus(String message) {
+    _log(message);
+    state = state.copyWith(status: message);
+  }
 
   Future<void> uploadAndPublish() async {
+    _log(
+      'Upload & publish tapped (${state.rows.length} photo(s), mode=${state.publishMode.name}).',
+    );
     final config = state.config;
     final pat = await _storage.readPat();
-    if (config == null || pat == null) return;
+    if (config == null) {
+      _setUserStatus('Gallery is not configured. Open Git settings and connect the repo.');
+      return;
+    }
+    if (pat == null || pat.isEmpty) {
+      _setUserStatus('Personal access token is missing. Open Git settings and save a PAT.');
+      return;
+    }
+    _log('Publishing to ${config.repoUrl} (${config.branch}).');
     if (state.rows.isEmpty) {
-      state = state.copyWith(status: 'Add photos before publishing.');
+      _setUserStatus('Add photos before publishing.');
       return;
     }
     for (final row in state.rows) {
       final error = validateUploadRowForPublish(row);
       if (error != null) {
-        state = state.copyWith(status: error);
+        _log(
+          'Validation failed for ${row.destFilename.isEmpty ? row.sourcePath : row.destFilename}: $error',
+        );
+        _setUserStatus(error);
         selectRow(row.id);
         return;
       }
@@ -927,6 +987,7 @@ class AppController extends StateNotifier<AppState> {
       await _drafts.clear();
       _cancelToken = null;
       _clearProgress();
+      _log('Published to GitHub.');
       state = state.copyWith(
         rows: [],
         selectedRowIds: {},
@@ -940,6 +1001,7 @@ class AppController extends StateNotifier<AppState> {
     } on OperationCanceledException {
       _cancelToken = null;
       _clearProgress();
+      _log('Publish canceled.');
       state = state.copyWith(
         busy: false,
         operationCancelable: false,
@@ -949,6 +1011,7 @@ class AppController extends StateNotifier<AppState> {
     } catch (e) {
       _cancelToken = null;
       _clearProgress();
+      _log('Publish failed: $e');
       state = state.copyWith(
         busy: false,
         operationCancelable: false,

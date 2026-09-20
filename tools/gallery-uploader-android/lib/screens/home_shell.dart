@@ -17,6 +17,7 @@ import '../widgets/photo_accordion_list.dart';
 import '../widgets/photo_compact_list.dart';
 import '../widgets/photo_detail_pane.dart';
 import '../widgets/photo_master_list.dart';
+import '../widgets/debug_log_panel.dart';
 import '../widgets/publish_panel.dart';
 import '../widgets/queue_toolbar.dart';
 import '../widgets/registry_create_dialog.dart';
@@ -299,6 +300,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(
+      appControllerProvider.select((s) => s.status),
+      (previous, next) {
+        if (next != null && next != previous && !_showStatus) {
+          setState(() => _showStatus = true);
+        }
+      },
+    );
     final state = ref.watch(appControllerProvider);
     final notifier = ref.read(appControllerProvider.notifier);
     final width = MediaQuery.sizeOf(context).width;
@@ -356,6 +365,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             rowCount: state.rows.length,
             busy: state.busy,
             canCancel: state.operationCancelable,
+            status: state.status,
+            blockingErrors: state.publishBlockingErrors,
             onCommitMessageChanged: notifier.setCommitMessage,
             onPublishModeChanged: notifier.setPublishMode,
             onPublish: notifier.uploadAndPublish,
@@ -436,6 +447,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               ],
             ),
           Expanded(child: content),
+          const DebugLogPanel(),
         ],
       ),
       bottomNavigationBar: isWideTablet

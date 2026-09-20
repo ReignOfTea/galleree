@@ -11,10 +11,32 @@ import 'operation_cancel.dart';
 
 export 'github_gallery_io.dart' show findGitHubArchiveRootPrefix;
 
+String formatGitHubApiError(int statusCode, String body) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic> && decoded['message'] is String) {
+      final message = decoded['message'] as String;
+      final errors = decoded['errors'];
+      if (errors is List && errors.isNotEmpty) {
+        return 'GitHub API $statusCode: $message ($errors)';
+      }
+      return 'GitHub API $statusCode: $message';
+    }
+  } catch (_) {}
+  final compact = body.replaceAll(RegExp(r'\s+'), ' ').trim();
+  final snippet = compact.length > 240 ? '${compact.substring(0, 240)}…' : compact;
+  return snippet.isEmpty ? 'GitHub API $statusCode' : 'GitHub API $statusCode: $snippet';
+}
+
 class GitHubGalleryService {
-  GitHubGalleryService({http.Client? client}) : _client = client ?? http.Client();
+  GitHubGalleryService({http.Client? client, void Function(String message)? onLog})
+      : _client = client ?? http.Client(),
+        _onLog = onLog;
 
   final http.Client _client;
+  final void Function(String message)? _onLog;
+
+  void _log(String message) => _onLog?.call(message);
 
   Map<String, String> _headers(String pat) => {
         'Authorization': 'Bearer $pat',
@@ -90,6 +112,7 @@ class GitHubGalleryService {
     if (baseTreeSha == null) throw StateError('Could not read commit tree');
 
     onProgress?.call('Building commit…');
+    _log('Building commit from ${stagedRepoPaths.length} staged path(s).');
     final treeEntries = <Map<String, dynamic>>[];
 
     final repoPaths = stagedRepoPaths.toSet();
@@ -98,7 +121,10 @@ class GitHubGalleryService {
     for (final repoPath in repoPaths) {
       cancel?.throwIfCanceled();
       final absolutePath = p.join(paths.workdirRoot, repoPath.replaceAll('/', p.separator));
-      if (!File(absolutePath).existsSync()) continue;
+      if (!File(absolutePath).existsSync()) {
+        _log('Skipping missing file: $repoPath');
+        continue;
+      }
       await _addFileToTree(
         owner: owner,
         repo: repo,
@@ -276,19 +302,24 @@ class GitHubGalleryService {
   ) async {
     final url = 'https://api.github.com/repos/$owner/$repo/git/ref/heads/$branch';
     final resp = await _client.get(Uri.parse(url), headers: _headers(pat));
+    _logHttp('GET', url, resp.statusCode);
     if (resp.statusCode == 404) {
       throw StateError('Branch "$branch" not found on GitHub');
     }
     if (resp.statusCode >= 400) {
-      throw StateError('GitHub API ${resp.statusCode}: ${resp.body}');
+      throw StateError(formatGitHubApiError(resp.statusCode, resp.body));
     }
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> _getJson(String url, String pat) async {
     final resp = await _client.get(Uri.parse(url), headers: _headers(pat));
+    final isBlob = url.contains('/git/blobs/');
+    if (resp.statusCode >= 400 || !isBlob) {
+      _logHttp('GET', url, resp.statusCode);
+    }
     if (resp.statusCode >= 400) {
-      throw StateError('GitHub API ${resp.statusCode}: ${resp.body}');
+      throw StateError(formatGitHubApiError(resp.statusCode, resp.body));
     }
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
@@ -299,8 +330,9 @@ class GitHubGalleryService {
       headers: {..._headers(pat), 'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
+    _logHttp('POST', url, resp.statusCode);
     if (resp.statusCode >= 400) {
-      throw StateError('GitHub API ${resp.statusCode}: ${resp.body}');
+      throw StateError(formatGitHubApiError(resp.statusCode, resp.body));
     }
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
@@ -311,8 +343,13 @@ class GitHubGalleryService {
       headers: {..._headers(pat), 'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
+    _logHttp('PATCH', url, resp.statusCode);
     if (resp.statusCode >= 400) {
-      throw StateError('GitHub API ${resp.statusCode}: ${resp.body}');
+      throw StateError(formatGitHubApiError(resp.statusCode, resp.body));
     }
+  }
+
+  void _logHttp(String method, String url, int statusCode) {
+    _log('$method $url → $statusCode');
   }
 }

@@ -17,6 +17,8 @@ class PublishPanel extends StatefulWidget {
     required this.onPublish,
     required this.onSync,
     required this.onCancel,
+    this.status,
+    this.blockingErrors = const [],
   });
 
   final String commitMessage;
@@ -24,6 +26,8 @@ class PublishPanel extends StatefulWidget {
   final int rowCount;
   final bool busy;
   final bool canCancel;
+  final String? status;
+  final List<String> blockingErrors;
   final ValueChanged<String> onCommitMessageChanged;
   final ValueChanged<PublishMode> onPublishModeChanged;
   final VoidCallback onPublish;
@@ -129,6 +133,54 @@ class _PublishPanelState extends State<PublishPanel> {
             subtitle: Text(mode.summary),
           );
         }),
+        if (widget.blockingErrors.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Card(
+            color: Theme.of(context).colorScheme.errorContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Fix these before upload',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...widget.blockingErrors.take(8).map(
+                        (error) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '• $error',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onErrorContainer,
+                                ),
+                          ),
+                        ),
+                      ),
+                  if (widget.blockingErrors.length > 8)
+                    Text(
+                      '…and ${widget.blockingErrors.length - 8} more',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        if (widget.status != null && widget.status!.trim().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            widget.status!,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ),
+        ],
         const SizedBox(height: 16),
         Wrap(
           spacing: 12,

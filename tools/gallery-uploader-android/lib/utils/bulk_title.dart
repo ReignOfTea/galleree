@@ -10,6 +10,7 @@ enum BulkTitleMode {
   suffix,
   stripCameraPrefix,
   number,
+  incremental,
 }
 
 class BulkTitleOptions {
@@ -29,11 +30,19 @@ class BulkTitleOptions {
   const BulkTitleOptions.number({this.start = 1, this.pad = 0})
       : mode = BulkTitleMode.number,
         text = '';
+  const BulkTitleOptions.incremental(this.text, {this.start = 1})
+      : mode = BulkTitleMode.incremental,
+        pad = 0;
 
   final BulkTitleMode mode;
   final String text;
   final int start;
   final int pad;
+}
+
+String incrementalTitle(String baseName, int index) {
+  final base = baseName.trim();
+  return base.isEmpty ? '#$index' : '$base #$index';
 }
 
 String _fileBaseName(String path) {
@@ -55,6 +64,7 @@ String applyBulkTitle(UploadRow row, BulkTitleOptions options) {
       final stripped = title.replaceFirst(_cameraPrefixRe, '').trim();
       return stripped.isEmpty ? title : stripped;
     case BulkTitleMode.number:
+    case BulkTitleMode.incremental:
       return title;
   }
 }
@@ -64,7 +74,9 @@ List<UploadRow> applyBulkTitlesToRows(
   Set<String>? scopeIds,
   BulkTitleOptions options,
 ) {
-  var counter = options.mode == BulkTitleMode.number ? options.start : 0;
+  final sequential = options.mode == BulkTitleMode.number ||
+      options.mode == BulkTitleMode.incremental;
+  var counter = sequential ? options.start : 0;
   return rows.map((row) {
     final inScope = scopeIds == null || scopeIds.isEmpty || scopeIds.contains(row.id);
     if (!inScope) return row;
@@ -75,6 +87,14 @@ List<UploadRow> applyBulkTitlesToRows(
       counter += 1;
       final base = applyBulkTitle(row, const BulkTitleOptions.stripCameraPrefix());
       return row.copyWith(title: '$base $num'.trim());
+    }
+
+    if (options.mode == BulkTitleMode.incremental) {
+      final base = options.text.trim();
+      if (base.isEmpty) return row;
+      final titled = row.copyWith(title: incrementalTitle(base, counter));
+      counter += 1;
+      return titled;
     }
 
     return row.copyWith(title: applyBulkTitle(row, options));

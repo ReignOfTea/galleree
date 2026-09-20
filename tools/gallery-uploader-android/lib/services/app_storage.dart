@@ -15,6 +15,7 @@ const _commitMsgKey = 'commit_message';
 const _queueViewKey = 'queue_view_mode';
 const _onboardingPublishKey = 'onboarding_publish_dismissed';
 const _onboardingSidecarKey = 'onboarding_sidecar_dismissed';
+const _debugLogVisibleKey = 'debug_log_visible';
 
 class AppStorage {
   Future<String?> readPat() async {
@@ -116,6 +117,16 @@ class AppStorage {
   Future<void> dismissOnboarding(String key) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, true);
+  }
+
+  Future<bool> loadDebugLogVisible() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_debugLogVisibleKey) ?? false;
+  }
+
+  Future<void> saveDebugLogVisible(bool visible) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_debugLogVisibleKey, visible);
   }
 
   static const onboardingPublishKey = _onboardingPublishKey;
