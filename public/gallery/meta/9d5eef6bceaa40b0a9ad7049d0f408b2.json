@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "id": "9d5eef6bceaa40b0a9ad7049d0f408b2",
+  "title": "VoxPop",
+  "tags": [
+    "People",
+    "Protest",
+    "Voxpop"
+  ],
+  "description": "Labour Conference 2026",
+  "location": "Liverpool, UK",
+  "capturedOn": "2026-09-27",
+  "capturedAt": "2026-09-27T12:17:25.000Z",
+  "camera": "sony-ilce-7m4",
+  "collectionSlug": "labour-party-conference-2026",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-30T19:27:14.477535Z",
+  "contentHash": "3faa665f7e5d5e847f900e22096af234b198306b1d7939a0cb61bec0c4d1ca83",
+  "blurHash": "UeGIM_9GE2ob~qIUNGWC.8M_jFR-%gR%V@WB",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "Viltrox 55mm F1.8 FE"
+    },
+    {
+      "label": "Focal length",
+      "value": "55 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "55 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/7.1"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/50 s"
+    },
+    {
+      "label": "ISO",
+      "value": "50.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Sep 27, 2026 1:17 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 30, 2026 6:35 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Sep 27, 2026 1:17 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}

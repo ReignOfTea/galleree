@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "id": "a6664c04e1384dd392e6fd0daf8278b9",
+  "title": "Arrest #4",
+  "tags": [
+    "People",
+    "Protest",
+    "Palestine Action",
+    "Arrest",
+    "Police"
+  ],
+  "description": "Labour Conference 2026",
+  "location": "Liverpool, UK",
+  "capturedOn": "2026-09-27",
+  "capturedAt": "2026-09-27T15:42:02.000Z",
+  "camera": "sony-ilce-7m4",
+  "collectionSlug": "labour-party-conference-2026",
+  "copyright": "Reign of Tea",
+  "uploadedAt": "2026-09-30T19:25:16.842450Z",
+  "contentHash": "7a0a0c8fc7dbf1d66e641f023d67b1da12a6c8691d155cd1a30fbd972072ba22",
+  "blurHash": "UGBqFbMfyp.6~pV[xvxurNjY$,s=r#tL$,n-",
+  "exifDisplay": [
+    {
+      "label": "Camera make",
+      "value": "SONY"
+    },
+    {
+      "label": "Camera model",
+      "value": "ILCE-7M4"
+    },
+    {
+      "label": "Lens",
+      "value": "E 28-200mm F2.8-5.6 A071"
+    },
+    {
+      "label": "Focal length",
+      "value": "28 mm"
+    },
+    {
+      "label": "Focal length (35mm eq.)",
+      "value": "28 mm"
+    },
+    {
+      "label": "Aperture",
+      "value": "f/5.6"
+    },
+    {
+      "label": "Shutter speed",
+      "value": "1/250 s"
+    },
+    {
+      "label": "ISO",
+      "value": "100.0"
+    },
+    {
+      "label": "Exposure program",
+      "value": "3.0"
+    },
+    {
+      "label": "Metering mode",
+      "value": "5.0"
+    },
+    {
+      "label": "Flash",
+      "value": "16.0"
+    },
+    {
+      "label": "White balance",
+      "value": "0.0"
+    },
+    {
+      "label": "Date (original)",
+      "value": "Sep 27, 2026 4:42 PM"
+    },
+    {
+      "label": "Date (created)",
+      "value": "Sep 30, 2026 6:34 PM"
+    },
+    {
+      "label": "Date (modified)",
+      "value": "Sep 27, 2026 4:42 PM"
+    },
+    {
+      "label": "Color space",
+      "value": "65535.0"
+    }
+  ]
+}
